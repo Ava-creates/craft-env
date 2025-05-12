@@ -42,6 +42,8 @@ class CraftLab(object):
     self.steps = 0
     self._extra_pickup_penalty = extra_pickup_penalty
     self._current_state = self.scenario.init()
+    self._picked_up_counts = {}  # Track how many of each item we've picked up
+    self._last_inventory = None  # Track last inventory state to detect pickups
 
     # Rendering options
     self._render_state = {}
@@ -122,6 +124,8 @@ class CraftLab(object):
     del seed
     self._current_state = self.scenario.init()
     self.steps = 0
+    self._picked_up_counts = {}  # Reset picked up counts
+    self._last_inventory = np.zeros_like(self._current_state.inventory)  # Initialize last inventory
     return self.observations()
 
   def observations(self):
@@ -157,18 +161,56 @@ class CraftLab(object):
     done = (self._current_state.satisfies(goal_name, goal_arg)
             or self.steps >= self.max_steps)
     return done
-
   def _get_reward(self):
     goal_name, goal_arg = self.task.goal
 
-    # We want the correct pickup to be in inventory.
-    # But we will penalise the agent for picking up extra stuff.
+    # Get all items needed in the recipe for the goal
+    needed_items = self.world.cookbook.primitives_for(goal_arg)
+    
+    # Calculate reward based on new pickups of needed items
+    reward = 0.0
+    
+    # Check for new pickups by comparing current inventory with last inventory
+    if self._last_inventory is not None:
+      for item, needed_count in needed_items.items():
+        # If we have more of this item than before, it was just picked up
+        if self._current_state.inventory[item] > self._last_inventory[item]:
+          reward += 0.5  # Give reward for picking up a needed item
+          
+      # Check for goal item pickup
+      if self._current_state.inventory[goal_arg] > self._last_inventory[goal_arg]:
+        reward = 1.0  # Give full reward for picking up goal item
+    
+    # Update last inventory for next step
+    self._last_inventory = self._current_state.inventory.copy()
+      
+    # Penalize picking up items not needed for the recipe
     items_index = np.arange(self._current_state.inventory.size)
-    reward = float(self._current_state.inventory[goal_arg] > 0)
+    # Create mask for items that aren't needed (not in needed_items and not the goal)
+    not_needed_mask = np.ones_like(items_index, dtype=bool)
+    for item in needed_items:
+      not_needed_mask[item] = False
+    not_needed_mask[goal_arg] = False
+    
+    # Only penalize items that aren't needed for the recipe
     reward -= self._extra_pickup_penalty * np.sum(
-        self._current_state.inventory[items_index != goal_arg])
+        self._current_state.inventory[not_needed_mask])
     reward = np.maximum(reward, 0)
     return reward
+
+  # def _get_reward(self):
+  #   goal_name, goal_arg = self.task.goal
+
+  #   # We want the correct pickup to be in inventory.
+  #   # But we will penalise the agent for picking up extra stuff.
+  #   items_index = np.arange(self._current_state.inventory.size)
+  #   reward = float(self._current_state.inventory[goal_arg] > 0)
+  #   print(self._current_state.inventory[items_index != goal_arg])
+  #   # print(goal_arg)
+  #   reward -= self._extra_pickup_penalty * np.sum(
+  #       self._current_state.inventory[items_index != goal_arg])
+  #   # reward = np.maximum(reward, 0)
+  #   return reward
 
   def close(self):
     """Not used."""
@@ -207,7 +249,7 @@ class CraftLab(object):
     env_canvas[..., :] = self._colors['background']
 
     # Place all components
-    for name, component_i in state.world.cookbook.index.contents.iteritems():
+    for name, component_i in state.world.cookbook.index.contents.items():
       # Check if the component is there, if so, color env_canvas accordingly.
       x_i, y_i = np.nonzero(state.grid[..., component_i])
       env_canvas[x_i, y_i] = self._colors[name]
@@ -227,7 +269,7 @@ class CraftLab(object):
     inventory_canvas = np.zeros((2, len(state.world.grabbable_indices) + 1, 3))
     for i, obj_id in enumerate(state.world.grabbable_indices[1:]):
       inventory_canvas[0, i + 1] = self._colors[state.world.cookbook.index.get(obj_id)]
-    for c in xrange(3):
+    for c in range(3):
       inventory_canvas[1, 1:-1, c] = np.minimum(state.inventory[state.world.grabbable_indices[1:]], 1)
     inventory_img = Image.fromarray(
         (inventory_canvas * 255).astype(np.uint8), mode='RGB')

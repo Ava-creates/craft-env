@@ -40,7 +40,7 @@ class EnvironmentFactory(object):
 
     # Load the tasks with sub-steps (== hints)
     with open(hints_path) as hints_f:
-      self.hints = yaml.load(hints_f)
+      self.hints = yaml.load(hints_f, Loader=yaml.FullLoader)
 
     # Setup all possible tasks
     self._init_tasks()
@@ -74,6 +74,7 @@ class EnvironmentFactory(object):
   def _create_environment(self, task_name):
     # Get the task
     task = self.tasks[task_name]
+    # print(self.tasks, "printing out th etasks")
     goal_arg = task.goal[1]
 
     # Sample a world (== scenario for them...)

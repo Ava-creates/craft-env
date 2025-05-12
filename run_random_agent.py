@@ -13,18 +13,28 @@ def run_loop(env, n_steps, visualise=False):
   possible_actions = env.action_specs()
 
   observations = env.reset()
-  for t in xrange(n_steps):
+  # if visualise:
+  #   env.render_matplotlib(frame=observations['image'])
+  #   time.sleep(20)  # Keep the image visible for 2 seconds
+  # else:
+  #   print("Initial observations:", observations)
+  # print("VDFS \n", env.world.cookbook.index, "\n")
+  actions=[1, 4, 1, 4]
+  time.sleep(4)
+  for t in range(len(actions)):
     # Random action
-    action = np.random.choice(possible_actions.values())
-
+    # print("hehe")
+    # action = np.random.choice(possible_actions.values())
+    action = actions[t]
     # Step (this will plot if visualise is True)
     reward, done, observations = env.step(action)
+    # print(reward)
     if visualise:
       env.render_matplotlib(frame=observations['image'])
     else:
       print("[{}] reward={} done={} \n observations: {}".format(
           t, reward, done, observations))
-
+    time.sleep(1)    
     if reward:
       rewarding_frame = observations['image'].copy()
       rewarding_frame[:40] *= np.array([0, 1, 0])
@@ -44,7 +54,7 @@ def main():
       recipes_path, hints_path, max_steps=100, reuse_environments=False,
       visualise=visualise)
 
-  env = env_sampler.sample_environment(task_name='get[rock]')
+  env = env_sampler.sample_environment(task_name='make[stick]')
   print("Environment: task {}: {}".format(env.task_name, env.task))
   run_loop(env, 100 * 3, visualise=visualise)
 
