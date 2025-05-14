@@ -402,46 +402,6 @@ def evaluate() -> float:
 
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-  def _get_recipe(goal):
-    cookbook = env.world.cookbook
-    recipe = cookbook.recipes.get(goal, {})
-    ingredients = {k: v for k, v in recipe.items() if isinstance(k, int)}
-    return ingredients
-
-  def _find_ingredients():
-    goal = item
-    ingredients = _get_recipe(goal)
-    while any(isinstance(v, dict) for v in ingredients.values()):
-      for ing_idx, count in list(ingredients.items()):
-        if isinstance(count, dict):
-          sub_ingredients = {sub_ing: sub_count * count[sub_ing] for sub_ing, sub_count in _get_recipe(list(count.keys())[0]).items()}
-          ingredients.update(sub_ingredients)
-          del ingredients[ing_idx]
-    return {k: v for k, v in ingredients.items() if k != "_key"}
-
-  def _craft_sequence():
-    ingredients = _find_ingredients()
-    sequence = []
-    inventory = env._current_state.inventory
-    for ing_idx, count in ingredients.items():
-      while inventory[ing_idx] < count:
-        if env._current_state.next_to(ing_idx):
-          sequence.append(env.action_specs()["USE"])
-        else:
-          direction = None
-          for action in [0, 1, 2, 3]:
-            new_pos = np.array(env._current_state.pos) + env.world.move_deltas[action]
-            if all(0 <= coord < dim for coord, dim in zip(new_pos, env.grid.shape[:2])) and env.grid[tuple(new_pos)] == 0:
-              direction = action
-              break
-          if direction is not None:
-            sequence.append(direction)
-          else:
-            raise ValueError("No valid move found to pick up ingredient")
-      sequence.append(env.action_specs()["USE"])
-    return sequence
-
-  return _craft_sequence()
 
  
 print(evaluate() +1)

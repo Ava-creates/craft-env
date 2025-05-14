@@ -19,7 +19,7 @@ def run_loop(env, n_steps, visualise=False):
   # else:
   #   print("Initial observations:", observations)
   # print("VDFS \n", env.world.cookbook.index, "\n")
-  actions=[1, 4, 1, 4]
+  actions=[ 1, 4, 1, 4]
   time.sleep(4)
   for t in range(len(actions)):
     # Random action

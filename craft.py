@@ -285,12 +285,14 @@ class CraftState(object):
     n_grid = self.grid
 
     reward = 0.0
-
+    # print(x, y)
     # move actions
     if action == DOWN:
       dx, dy = (0, -1)
+      # print("in down action")
       n_dir = DOWN
     elif action == UP:
+      # print("in up action")
       dx, dy = (0, 1)
       n_dir = UP
     elif action == LEFT:

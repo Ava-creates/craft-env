@@ -161,6 +161,7 @@ class CraftLab(object):
     done = (self._current_state.satisfies(goal_name, goal_arg)
             or self.steps >= self.max_steps)
     return done
+    
   def _get_reward(self):
     goal_name, goal_arg = self.task.goal
 
@@ -211,6 +212,48 @@ class CraftLab(object):
   #       self._current_state.inventory[items_index != goal_arg])
   #   # reward = np.maximum(reward, 0)
   #   return reward
+
+
+  # #llm provided  40 mini
+
+  # def _get_reward(self):
+  #       """
+  #       Computes a shaped reward for FunSearch:
+  #         - +1.0 for achieving the goal
+  #         - +0.1 * fraction of required primitives already collected
+  #         - +0.2 bonus if near a workshop and the goal requires crafting
+  #         - -extra_pickup_penalty for each USE action
+  #       """
+  #       reward = 0.0
+  #       goal_name, goal_idx = self.task.goal
+  #       satisfies = self._current_state.satisfies(goal_name, goal_idx)
+
+  #       if satisfies:
+  #           reward += 1.0
+  #       else:
+  #           # Shaped reward based on how many goal ingredients are collected
+  #           recipe = self.world.cookbook.recipes.get(goal_idx, {})
+  #           total_required = sum(v for k, v in recipe.items() if isinstance(k, int))
+  #           if total_required > 0:
+  #               collected = sum(
+  #                   min(self._current_state.inventory[k], v)
+  #                   for k, v in recipe.items()
+  #                   if isinstance(k, int)
+  #               )
+  #               reward += 0.1 * (collected / total_required)
+
+  #           # Bonus if next to workshop and this is a craftable goal
+  #           if any(isinstance(k, int) for k in recipe):
+  #               if any(self._current_state.next_to(wk) for wk in self.world.workshop_indices):
+  #                   reward += 0.2
+
+  #       # Penalty for excessive USE
+  #       USE = self.action_specs()['USE']
+  #       if getattr(self, '_last_action', None) == USE:
+  #           reward -= self._extra_pickup_penalty
+
+  #       return reward
+
 
   def close(self):
     """Not used."""
