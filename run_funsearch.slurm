@@ -6,9 +6,9 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=200G
-#SBATCH --gres=gpu:a100_4g.20gb:1
-#SBATCH --account=def-lelis
+#SBATCH --mem=187G
+#SBATCH --gres=gpu:v100:4
+#SBATCH --account=rrg-lelis
 
 # Load required modules (adjust these based on your cluster's setup)
 module load cuda/11.8
