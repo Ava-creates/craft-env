@@ -3,11 +3,11 @@
 #SBATCH --output=funsearch_%j.out
 #SBATCH --error=funsearch_%j.err
 #SBATCH --time=48:00:00
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=187G
-#SBATCH --gres=gpu:v100:4
+#SBATCH --gres=gpu:v1001:4
 #SBATCH --account=rrg-lelis
 
 # Load required modules (adjust these based on your cluster's setup)
