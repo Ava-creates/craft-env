@@ -22,7 +22,7 @@ Indented multiline string of all attributes
 Inputs
 self
 Outputs
-“Struct({…})” showing internal attribute dict
+"Struct({…})" showing internal attribute dict
 
 ---
 
@@ -54,7 +54,7 @@ get(self, idx) → str
 Inputs
 idx: int
 Outputs
-Name for idx or “*invalid*” if idx == 0
+Name for idx or "*invalid*" if idx == 0
 
 **len**(self) → int
 Inputs
@@ -72,7 +72,7 @@ Iterator over ordered\_contents
 Inputs
 self
 Outputs
-“Index: {…}” showing contents dict
+"Index: {…}" showing contents dict
 
 ---
 
@@ -111,7 +111,7 @@ None
 
 Function: parse\_fexp(fexp) → (str, str)
 Inputs
-fexp: str of form “name\[arg]”
+fexp: str of form "name[arg]"
 Outputs
 (name, arg) extracted via regex
 Data Attributes
@@ -173,8 +173,8 @@ n_actions: int number of possible actions (N_ACTIONS)
 non_grabbable_indices: set of int indices for entities that cannot be picked up
 grabbable_indices: list of int indices for entities that can be picked up
 workshop_indices: list of int indices for workshop locations
-water_index: int index for the “water” entity
-stone_index: int index for the “stone” entity
+water_index: int index for the "water" entity
+stone_index: int index for the "stone" entity
 random: numpy.random.RandomState initialized with the given seed
 
 
@@ -197,8 +197,8 @@ CraftState
 
 Data Attributes 
 init_grid: numpy.ndarray (the initial grid layout)
-init_pos: tuple(int, int) (the agent’s starting position)
-init_dir: int (the agent’s starting direction, default 0)
+init_pos: tuple(int, int) (the agent's starting position)
+init_dir: int (the agent's starting direction, default 0)
 world: CraftWorld instance (reference to the world configuration)
 
 
@@ -261,8 +261,8 @@ scenario: CraftScenario instance (reference to the scenario that created this st
 world: CraftWorld instance (reference to the world configuration)
 grid: numpy.ndarray of shape (WIDTH, HEIGHT, n_kinds) (current grid occupancy)
 inventory: numpy.ndarray of length n_kinds (current counts of each item)
-pos: tuple(int, int) (agent’s current position)
-dir: int (agent’s current facing direction)
+pos: tuple(int, int) (agent's current position)
+dir: int (agent's current facing direction)
 _cached_features_dict: dict or None (cache for computed feature slices)
 _cached_features: numpy.ndarray or None (cache for flattened feature vector)
 
@@ -402,6 +402,7 @@ def evaluate() -> float:
 
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
+  return []
 
  
 print(evaluate() +1)
