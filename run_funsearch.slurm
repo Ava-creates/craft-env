@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=187G
-#SBATCH --gres=gpu:v1001:4
+#SBATCH --gres=gpu:v100l:4
 #SBATCH --account=rrg-lelis
 
 # Load required modules (adjust these based on your cluster's setup)
