@@ -10,9 +10,6 @@
 #SBATCH --gres=gpu:v100l:4
 #SBATCH --account=rrg-lelis
 
-# Load required modules (adjust these based on your cluster's setup)
-module load cuda/11.8
-module load python/3.10
 
 # Create and activate virtual environment
 python -m venv funsearch_env

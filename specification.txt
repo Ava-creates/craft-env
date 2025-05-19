@@ -72,7 +72,7 @@ Iterator over ordered\_contents
 Inputs
 self
 Outputs
-“Index: {…}” showing contents dict
+“Index: {}” dictionary with strings mapped to int
 
 ---
 

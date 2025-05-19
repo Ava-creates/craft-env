@@ -93,4 +93,38 @@ def evaluate() -> float:
 
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-  return []
+  # return []
+  print("stick")
+  print(env.world.cookbook.index)
+  goal_index = env.world.cookbook.index["stick"]
+  print(goal_index)
+  recipe = env.world.cookbook.recipes.get(goal_index, {})
+  print(recipe)
+  # Initialize the action list
+  actions = []
+
+  # Iterate over the recipe to determine the sequence of actions needed
+  for ingredient_index, count in recipe.items():
+      if ingredient_index == "_key":
+          continue  # Skip the '_key' which denotes the output item
+
+      # Attempt to find the ingredient in the inventory
+      found = False
+      for i in range(len(env.world.grabbable_indices)):
+          if (env.world.inventory[i] > 0 and 
+              env.world.cookbook.index[i] == ingredient_index):
+              print("what are you trying to do")
+              # Determine the action to pick up this ingredient
+              action_index = env.world.grabbable_indices.index(i)
+              print(action_index)
+              actions.append(action_index)
+              found = True
+              break
+
+      if not found:
+          raise ValueError(f"Ingredient {ingredient_index} not found in inventory for crafting item {goal_index}")
+
+  return actions
+
+
+evaluate()
