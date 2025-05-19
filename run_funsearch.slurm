@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=100G
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a100_4g.20gb:2
 #SBATCH --account=rrg-lelis
 
 
