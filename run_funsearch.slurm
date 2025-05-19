@@ -7,11 +7,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=100G
-#SBATCH --gres=gpu:a100_4g.20gb:2
+#SBATCH --gres=gpu:v100l:2
 #SBATCH --account=rrg-lelis
 
 
 # Create and activate virtual environment
+# --gres=gpu:a100_4g.20gb:1 narval
 python -m venv funsearch_env
 source funsearch_env/bin/activate
 
