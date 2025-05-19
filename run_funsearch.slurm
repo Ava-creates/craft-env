@@ -6,8 +6,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=187G
-#SBATCH --gres=gpu:v100l:4
+#SBATCH --mem=100G
+#SBATCH --gres=gpu:a100:1
 #SBATCH --account=rrg-lelis
 
 
@@ -20,7 +20,6 @@ pip install -r requirements.txt
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=false
-export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-# Run the FunSearch implementation using the Python from our virtual environment
-./funsearch_env/bin/python -m funsearch.implementation.funsearch 
+# Run the FunSearch implementation
+python -m funsearch.implementation.funsearch 
