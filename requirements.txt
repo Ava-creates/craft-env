@@ -1,5 +1,4 @@
 absl-py==2.2.2+computecanada
-accelerate==1.7.0+computecanada
 certifi==2025.4.26+computecanada
 charset-normalizer==3.4.2+computecanada
 contourpy==1.3.2+computecanada
