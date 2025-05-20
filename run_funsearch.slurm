@@ -12,11 +12,8 @@
 
 
 # Create and activate virtual environment
-# --gres=gpu:a100_4g.20gb:1 narval
-python -m venv funsearch_env
+# --gres=gpu:a100_4g.20gb:1 arval
 source funsearch_env/bin/activate
-
-# Upgrade pip and install requirements
 pip install -r requirements.txt
 
 # Set environment variables
