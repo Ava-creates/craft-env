@@ -35,6 +35,7 @@ seaborn==0.13.2
 six==1.17.0
 sympy==1.14.0
 tifffile==2025.5.10
+--prefer-binary
 tokenizers==0.21.1
 torch==2.6.0+computecanada
 tqdm==4.67.1
