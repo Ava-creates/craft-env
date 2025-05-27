@@ -158,6 +158,9 @@ class CraftLab(object):
 
   def _is_done(self):
     goal_name, goal_arg = self.task.goal
+    # print(goal_name, goal_arg)
+    if(self.steps >= self.max_steps):
+      print("ran out of steps")
     done = (self._current_state.satisfies(goal_name, goal_arg)
             or self.steps >= self.max_steps)
     return done

@@ -105,12 +105,13 @@ def extract_distinct_function_bodies(input_log_file, output_file):
         print()
 
 if __name__ == "__main__":
-    log_file = "/Users/avanitiwari/Downloads/program_registration_2025-05-12_10-32-45.log"
+    # log_file = "/Users/avanitiwari/Downloads/program_registration_2025-05-12_10-32-45.log"
     # output_file = "scores_25_instances.json"
+    log_file = "results/program_registration_experiment_1_success.log"
     distinct_bodies_file = "distinct_function_bodies_[].json"
     
     analyze_scores(log_file)
     
     # extract_scores_to_file(log_file, output_file)
     
-    extract_distinct_function_bodies(log_file, distinct_bodies_file) 
+    # extract_distinct_function_bodies(log_file, distinct_bodies_file) 
