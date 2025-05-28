@@ -20,4 +20,4 @@ pip install -r requirements.txt
 export TOKENIZERS_PARALLELISM=false
 
 # Run the FunSearch implementation
-python -m funsearch.implementation.funsearch 
+python -m funsearch.implementation.funsearch --model_type="huggingface"
