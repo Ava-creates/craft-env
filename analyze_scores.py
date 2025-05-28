@@ -68,7 +68,7 @@ def extract_distinct_function_bodies(input_log_file, output_file):
                 scores = data.get('scores', {})
                 
                 # Check if any score is 2.5
-                if any(score == 1.0 for score in scores.values()):
+                if any(score == 2.5 for score in scores.values()):
                     function_body = data.get('function_body', '')
                     if function_body:
                         function_bodies[function_body].append({
@@ -106,12 +106,12 @@ def extract_distinct_function_bodies(input_log_file, output_file):
 
 if __name__ == "__main__":
     # log_file = "/Users/avanitiwari/Downloads/program_registration_2025-05-12_10-32-45.log"
-    # output_file = "scores_25_instances.json"
-    log_file = "results/program_registration_experiment_1_success.log"
-    distinct_bodies_file = "distinct_function_bodies_[].json"
+    output_file = "results/scores_25_instances_qwen.json"
+    log_file = "results/program_registration_2025-05-25_11-02-38.log"
+    distinct_bodies_file = "results/distinct_function_bodies_qwen.json"
     
     analyze_scores(log_file)
     
-    # extract_scores_to_file(log_file, output_file)
+    extract_scores_to_file(log_file, output_file)
     
-    # extract_distinct_function_bodies(log_file, distinct_bodies_file) 
+    extract_distinct_function_bodies(log_file, distinct_bodies_file) 
