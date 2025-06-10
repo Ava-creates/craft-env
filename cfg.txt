@@ -1,0 +1,9 @@
+s ::= task SEMI s | task SEMI
+task ::= move | craft | ifhas do
+move ::= MOVE_FUNC LPAR dir RPAR
+dir ::= UP | DOWN | LEFT | RIGHT
+craft ::= CRAFT_FUNC LPAR item RPAR
+item ::= PLANK | STICK | CLOTH | ROPE | BRIDGE | BUNDLE | HAMMER | KNIFE | BED | AXE | SHEARS | LADDER | SLINGSHOT | ARROW | BOW | BENCH | FLAG | GOLDARROW
+ifhas ::= if HAS LPAR item RPAR
+kind ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
+do ::= then task

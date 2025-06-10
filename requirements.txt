@@ -43,3 +43,4 @@ seaborn==0.13.2
 six==1.17.0
 sympy==1.14.0
 tifffile==2025.5.10
+lark>=0.12.0

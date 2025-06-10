@@ -1,0 +1,110 @@
+Best Sample 1:
+def move(env, dir) -> int:
+  actions = {'UP': 1, 'DOWN': 0, 'LEFT': 2, 'RIGHT': 3}
+
+  # Get the current state and position
+  current_state = env._current_state
+  current_pos = current_state.pos
+
+  # Calculate target position based on direction
+  if dir == 'UP':
+    new_pos = (current_pos[0], current_pos[1] - 1)
+  elif dir == 'DOWN':
+    new_pos = (current_pos[0], current_pos[1] + 1)
+  elif dir == 'LEFT':
+    new_pos = (current_pos[0] - 1, current_pos[1])
+  elif dir == 'RIGHT':
+    new_pos = (current_pos[0] + 1, current_pos[1])
+
+  # Check if the target position is within grid bounds and passable
+  grid_shape = env.scenario.world.cookbook.n_kinds
+  if (new_pos[0] >= 0 and new_pos[0] < grid_shape and 
+      new_pos[1] >= 0 and new_pos[1] < grid_shape):
+    return actions[dir]
+  
+  # Return no-op action if move is invalid
+  return -1
+
+
+
+Best Sample 2:
+def move(env, dir) -> int:
+  if dir == "UP":
+    print(1)
+    return 1
+  elif dir == "DOWN":
+    print(0)
+    return 0
+  elif dir == "LEFT":
+    print(2)
+    return 2
+  elif dir == "RIGHT":
+    print(3)
+    return 3
+  print("wtf")
+
+
+
+Best Sample 3:
+def move(env, dir) -> int:
+  action_map = {
+      'DOWN': 0,
+      'UP': 1,
+      'LEFT': 2,
+      'RIGHT': 3
+  }
+  
+  if dir not in action_map:
+    raise ValueError(f"Invalid direction: {dir}")
+
+  return action_map[dir]
+
+
+
+Best Sample 4:
+def move(env, dir) -> int:
+  actions = {'UP': 1, 'DOWN': 0, 'LEFT': 2, 'RIGHT': 3}
+
+  # Get the current state and position
+  current_state = env._current_state
+  current_pos = current_state.pos
+
+  # Calculate target position based on direction
+  if dir == 'UP':
+    new_pos = (current_pos[0], current_pos[1] - 1)
+  elif dir == 'DOWN':
+    new_pos = (current_pos[0], current_pos[1] + 1)
+  elif dir == 'LEFT':
+    new_pos = (current_pos[0] - 1, current_pos[1])
+  elif dir == 'RIGHT':
+    new_pos = (current_pos[0] + 1, current_pos[1])
+
+  # Check if the target position is within grid bounds and not a non-grabbable entity
+  grid_shape = env.scenario.world.cookbook.n_kinds
+  if (new_pos[0] >= 0 and new_pos[0] < grid_shape and 
+      new_pos[1] >= 0 and new_pos[1] < grid_shape):
+    target_index = np.argmax(env._current_state.grid[new_pos], axis=-1)
+    if target_index not in env.scenario.world.non_grabbable_indices:
+      return actions[dir]
+  
+  # Return no-op action if move is invalid
+  return -1
+
+
+
+Best Sample 5:
+def move(env, dir) -> int:
+  N_ACTIONS = {
+      'DOWN': 0,
+      'UP': 1,
+      'LEFT': 2,
+      'RIGHT': 3
+  }
+  
+  if dir not in N_ACTIONS:
+    raise ValueError(f"Invalid direction: {dir}")
+
+  return N_ACTIONS[dir]
+
+
+

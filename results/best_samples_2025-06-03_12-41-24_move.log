@@ -1,0 +1,74 @@
+Best Sample 1:
+  # Define the mapping from direction strings to action numbers
+  direction_to_action = {
+      "down": env.action_specs()["DOWN"],
+      "up": env.action_specs()["UP"],
+      "left": env.action_specs()["LEFT"],
+      "right": env.action_specs()["RIGHT"]
+  }
+  
+  # Return the corresponding action number, or raise an error if invalid direction
+  return direction_to_action.get(dir.lower(), -1)
+
+
+
+Best Sample 2:
+  # Dictionary mapping directions to action numbers
+  dir_to_action = {
+    "DOWN": 0,
+    "UP": 1,
+    "LEFT": 2,
+    "RIGHT": 3
+  }
+
+  # Return the corresponding action number for the given direction, or -1 if invalid
+  return dir_to_action.get(dir, -1)
+
+
+
+Best Sample 3:
+  action_names = [
+    'DOWN',   # 0
+    'UP',     # 1
+    'LEFT',   # 2
+    'RIGHT'   # 3
+  ]
+  
+  return action_names.index(dir)
+
+
+
+Best Sample 4:
+  assert type(dir) == str
+  assert dir.lower() in ["left", "right", "up", "down"], "Invalid direction."
+  
+  actions = {
+      'left': env.action_specs()['LEFT'],
+      'right': env.action_specs()['RIGHT'],
+      'up': env.action_specs()['UP'],
+      'down': env.action_specs()['DOWN']
+    }
+    
+  return actions[dir.lower()]
+
+
+
+Best Sample 5:
+  # Define mapping from directions to actions based on the CraftWorld specifications
+  dir_to_action = {
+    "DOWN": 0,
+    "UP": 1,
+    "LEFT": 2,
+    "RIGHT": 3
+  }
+
+  # Validate direction input and return the corresponding action number, or raise ValueError if invalid
+  try:
+    action = dir_to_action[dir]
+    return action
+  except KeyError as e:
+    print(f"Invalid direction provided: {dir}")
+    raise ValueError("Direction must be one of 'DOWN', 'UP', 'LEFT', 'RIGHT'") from e
+
+
+
