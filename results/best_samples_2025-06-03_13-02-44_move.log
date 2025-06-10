@@ -41,7 +41,6 @@ def move(env, dir) -> int:
   elif dir == "RIGHT":
     print(3)
     return 3
-  print("wtf")
 
 
 

@@ -4,6 +4,7 @@ from cfg_parser import CFGParser
 import itertools
 from program_evaluator import ProgramEvaluator 
 import heapq
+import concurrent.futures
 final = []
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
@@ -13,10 +14,9 @@ def evaluate_program_with_evaluator(program_str: str) -> int:
     Evaluate a program using your ProgramEvaluator.
     """
     try:
-        evaluator = ProgramEvaluator(visualise=True)
-        print("program", program_str)
+        evaluator = ProgramEvaluator()
         result = evaluator.evaluate_program(program_str)
-        print("result", result)
+        # print("result", result)
         if(result['success']):
             final.append(program_str)
         return result['total_reward']
@@ -24,6 +24,20 @@ def evaluate_program_with_evaluator(program_str: str) -> int:
         print("Error evaluating:", program_str, e)
         return float('-inf')
 
+def run_with_timeout(evaluator, program_str, timeout=200):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(evaluator.evaluate_program, program_str)
+        print("program", program_str)
+        try:
+            # print("program", program_str)
+            result = float(future.result(timeout=timeout)['total_reward'])
+        except concurrent.futures.TimeoutError:
+            print("Evaluation timed out.")
+            return float('-inf')
+        except Exception as e:
+            print("Error evaluating:", program_str, e)
+            return float('-inf')
+        return result
 def format_program(tokens: List[str]) -> str:
     # (Same formatting logic as before)
     result = []
@@ -78,7 +92,7 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
 
         if depth >= max_depth:
             continue
-
+        evaluator = ProgramEvaluator()
         # Expand first non-terminal
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
@@ -86,7 +100,7 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
                     for alt in tokenize_rhs(production):
                         new_derivation = current[:idx] + alt + current[idx+1:]
                         program_str = format_program(new_derivation)
-                        reward = evaluate_program_with_evaluator(program_str)
+                        reward = run_with_timeout(evaluator, program_str)
                         heapq.heappush(queue, (-reward, depth + 1, next(counter), new_derivation))
                 break
 
@@ -101,6 +115,6 @@ if __name__ == "__main__":
     start_symbol = "s"
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
-    for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=10), 1):
+    for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=5), 1):
         print(f"\n=== Program {i} ===")
         print(program)
