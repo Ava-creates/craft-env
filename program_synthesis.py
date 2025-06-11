@@ -7,6 +7,7 @@ import heapq
 import concurrent.futures
 import time
 import multiprocessing
+final =[]
 def run_evaluation(queue, evaluator, program_str):
     try:
         result = evaluator.evaluate_program(program_str)
@@ -15,7 +16,7 @@ def run_evaluation(queue, evaluator, program_str):
     except Exception as e:
         queue.put(e)
 
-def run_with_timeout(evaluator, program_str, timeout=200):
+def run_with_timeout(evaluator, program_str, timeout=360):
     queue = multiprocessing.Queue()
     p = multiprocessing.Process(target=run_evaluation, args=(queue, evaluator, program_str))
     p.start()
@@ -26,8 +27,8 @@ def run_with_timeout(evaluator, program_str, timeout=200):
         p.terminate()   # Force kill
         p.join()        # Wait for process cleanup (fast now)
         return 0.0
-    # exitcode = p.exitcode
-    # print(f"Child exit code: {exitcode}")
+    exitcode = p.exitcode
+    print(f"Child exit code: {exitcode}")
     if not queue.empty():
         result = queue.get()
         if isinstance(result, Exception):
@@ -52,7 +53,7 @@ def evaluate_program_with_evaluator(program_str: str) -> int:
         evaluator = ProgramEvaluator()
         result = evaluator.evaluate_program(program_str)
         # print("result", result)
-        if(result['success']):
+        if(result['success'] and all(is_terminal(sym, cfg) for sym in program_str)):
             final.append(program_str)
         return result['total_reward']
     except Exception as e:
