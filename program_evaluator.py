@@ -99,7 +99,7 @@ class ProgramEvaluator:
                 i += 1  
 
             else:
-                print("Unknown token", tokens[i])
+                # print("Unknown token", tokens[i])
                 return [], reward, False
 
         return actions, reward, d

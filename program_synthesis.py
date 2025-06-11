@@ -5,6 +5,41 @@ import itertools
 from program_evaluator import ProgramEvaluator 
 import heapq
 import concurrent.futures
+import time
+import multiprocessing
+def run_evaluation(queue, evaluator, program_str):
+    try:
+        result = evaluator.evaluate_program(program_str)
+        print("result", result)
+        queue.put(result)
+    except Exception as e:
+        queue.put(e)
+
+def run_with_timeout(evaluator, program_str, timeout=200):
+    queue = multiprocessing.Queue()
+    p = multiprocessing.Process(target=run_evaluation, args=(queue, evaluator, program_str))
+    p.start()
+    print("program", program_str)
+    p.join(timeout)
+    if p.is_alive():
+        print("Evaluation timed out.", program_str)
+        p.terminate()   # Force kill
+        p.join()        # Wait for process cleanup (fast now)
+        return 0.0
+    # exitcode = p.exitcode
+    # print(f"Child exit code: {exitcode}")
+    if not queue.empty():
+        result = queue.get()
+        if isinstance(result, Exception):
+            print("Error evaluating:", program_str, result)
+            return 0.0
+        if(result['success']):
+            final.append(program_str)
+        return float(result['total_reward'])
+    else:
+        print("No result returned.")
+        return float('-inf')
+
 final = []
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
@@ -24,20 +59,35 @@ def evaluate_program_with_evaluator(program_str: str) -> int:
         print("Error evaluating:", program_str, e)
         return float('-inf')
 
-def run_with_timeout(evaluator, program_str, timeout=200):
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(evaluator.evaluate_program, program_str)
-        print("program", program_str)
-        try:
-            # print("program", program_str)
-            result = float(future.result(timeout=timeout)['total_reward'])
-        except concurrent.futures.TimeoutError:
-            print("Evaluation timed out.")
-            return float('-inf')
-        except Exception as e:
-            print("Error evaluating:", program_str, e)
-            return float('-inf')
-        return result
+# def run_with_timeout(evaluator, program_str, timeout=200):
+#     with concurrent.futures.ThreadPoolExecutor() as executor:
+#         future = executor.submit(evaluator.evaluate_program, program_str)
+#         print("program", program_str)
+#         try:
+#             # print("program", program_str)
+#             result = float(future.result(timeout=timeout)['total_reward'])
+#         except concurrent.futures.TimeoutError:
+#             print("Evaluation timed out.")
+#             return float('-inf')
+#         except Exception as e:
+#             print("Error evaluating:", program_str, e)
+#             return float('-inf')
+#         return result
+
+# def run_with_timeout(evaluator, program_str, timeout=5):
+#     with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+#         future = executor.submit(evaluator.evaluate_program, program_str)
+#         print("program", program_str)
+#         try:
+#             result = float(future.result(timeout=timeout)['total_reward'])
+#         except concurrent.futures.TimeoutError:
+#             print("Evaluation timed out.")
+#             return float('-inf')
+#         except Exception as e:
+#             print("Error evaluating:", program_str, e)
+#             return float('-inf')
+#         return result
+
 def format_program(tokens: List[str]) -> str:
     # (Same formatting logic as before)
     result = []
