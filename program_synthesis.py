@@ -166,6 +166,6 @@ if __name__ == "__main__":
     start_symbol = "s"
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
-    for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=5), 1):
+    for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=15), 1):
         print(f"\n=== Program {i} ===")
         print(program)
