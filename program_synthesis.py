@@ -7,87 +7,29 @@ import heapq
 import concurrent.futures
 import time
 import multiprocessing
+import env_factory
 final =[]
-def run_evaluation(queue, evaluator, program_str):
-    try:
-        result = evaluator.evaluate_program(program_str)
-        print("result", result)
-        queue.put(result)
-    except Exception as e:
-        queue.put(e)
 
-def run_with_timeout(evaluator, program_str, timeout=360):
-    queue = multiprocessing.Queue()
-    p = multiprocessing.Process(target=run_evaluation, args=(queue, evaluator, program_str))
-    p.start()
-    print("program", program_str)
-    p.join(timeout)
-    if p.is_alive():
-        print("Evaluation timed out.", program_str)
-        p.terminate()   # Force kill
-        p.join()        # Wait for process cleanup (fast now)
-        return 0.0
-    exitcode = p.exitcode
-    print(f"Child exit code: {exitcode}")
-    if not queue.empty():
-        result = queue.get()
-        if isinstance(result, Exception):
-            print("Error evaluating:", program_str, result)
-            return 0.0
-        if(result['success']):
-            final.append(program_str)
-        return float(result['total_reward'])
-    else:
-        print("No result returned.")
-        return float('-inf')
-
-final = []
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
 
-def evaluate_program_with_evaluator(program_str: str) -> int:
+def evaluate_program_with_evaluator(evaluator, program_str: str, env) -> int:
     """
     Evaluate a program using your ProgramEvaluator.
     """
     try:
-        evaluator = ProgramEvaluator()
-        result = evaluator.evaluate_program(program_str)
+        # evaluator = ProgramEvaluator()
+        result = evaluator.evaluate_program(program_str, env)
         # print("result", result)
+
         if(result['success'] and all(is_terminal(sym, cfg) for sym in program_str)):
             final.append(program_str)
+        print("result", result)
         return result['total_reward']
     except Exception as e:
         print("Error evaluating:", program_str, e)
         return float('-inf')
 
-# def run_with_timeout(evaluator, program_str, timeout=200):
-#     with concurrent.futures.ThreadPoolExecutor() as executor:
-#         future = executor.submit(evaluator.evaluate_program, program_str)
-#         print("program", program_str)
-#         try:
-#             # print("program", program_str)
-#             result = float(future.result(timeout=timeout)['total_reward'])
-#         except concurrent.futures.TimeoutError:
-#             print("Evaluation timed out.")
-#             return float('-inf')
-#         except Exception as e:
-#             print("Error evaluating:", program_str, e)
-#             return float('-inf')
-#         return result
-
-# def run_with_timeout(evaluator, program_str, timeout=5):
-#     with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-#         future = executor.submit(evaluator.evaluate_program, program_str)
-#         print("program", program_str)
-#         try:
-#             result = float(future.result(timeout=timeout)['total_reward'])
-#         except concurrent.futures.TimeoutError:
-#             print("Evaluation timed out.")
-#             return float('-inf')
-#         except Exception as e:
-#             print("Error evaluating:", program_str, e)
-#             return float('-inf')
-#         return result
 
 def format_program(tokens: List[str]) -> str:
     # (Same formatting logic as before)
@@ -124,48 +66,66 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
-def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
+def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env):
     """
-    Priority-queue-based program synthesis using environment rewards.
+    Priority-queue-based program synthesis up to a given depth.
+    Evaluates only fully terminal (complete) programs.
     """
-    counter = itertools.count()  # Tie-breaker for equal priorities
-    queue: List[Tuple[int, int, int, List[str]]] = []  # (neg_reward, depth, count, derivation)
+    counter = itertools.count()
+    queue: List[Tuple[int, int, List[str]]] = []  # (depth, count, derivation)
 
-    heapq.heappush(queue, (0, 0, next(counter), [start_symbol]))
+    heapq.heappush(queue, (0, next(counter), [start_symbol]))
+
+    evaluator = ProgramEvaluator()
+    final_programs = []
 
     while queue:
-        neg_reward, depth, _, current = heapq.heappop(queue)
+        depth, _, current = heapq.heappop(queue)
 
         if all(is_terminal(sym, cfg) for sym in current):
             program_str = format_program(current)
-            yield program_str
+            print("program_str", program_str)
+            result = evaluate_program_with_evaluator(evaluator, program_str, env )  # Optional timeout
+
+            final_programs.append(program_str)
             continue
 
         if depth >= max_depth:
             continue
-        evaluator = ProgramEvaluator()
-        # Expand first non-terminal
+        if(len(final) > 0):
+            break
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
                 for production in cfg.rules[sym]:
                     for alt in tokenize_rhs(production):
                         new_derivation = current[:idx] + alt + current[idx+1:]
-                        program_str = format_program(new_derivation)
-                        reward = run_with_timeout(evaluator, program_str)
-                        heapq.heappush(queue, (-reward, depth + 1, next(counter), new_derivation))
-                break
+                        heapq.heappush(queue, (depth + 1, next(counter), new_derivation))
+                break  # Only expand the first non-terminal
 
-        if(len(final) > 5):
-            with open("final.txt", "w") as f:
-                for program in final:
-                    f.write(program + "\n")
-            break
+    with open("final.txt", "w") as f:
+        for program in final:
+            f.write(program + "\n")
+
+    # Optionally write final programs to file
+
+
+    return final_programs
 
 if __name__ == "__main__":
     cfg_parser = CFGParser("cfg.txt")
     start_symbol = "s"
+    recipes_path = "resources/recipes.yaml"
+    hints_path = "resources/hints.yaml"
+    env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, max_steps=100, 
+            reuse_environments=False, visualise=False)
+    tasks =["make[arrow]", "make[flag]", "make[bench]", "get[gold]"]
+    envs =[]
+    for task in tasks:
+        envs.append(env_sampler.sample_environment(task_name=task))
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
-    for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=15), 1):
-        print(f"\n=== Program {i} ===")
-        print(program)
+    for env in envs:
+        for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=15, env=env), 1):
+            print(f"\n=== Program {i} ===")
+            print(program)

@@ -1,0 +1,57 @@
+I have an older version of a context-free grammar (CFG) that defines a domain-specific language (DSL) for controlling an agent in a 2D grid environment inspired by Minecraft.
+
+The DSL includes commands like movement, crafting, and conditional actions.
+
+## TASK:
+Given the environment and agent specification below, generate a new version of the CFG in BNF format. The new grammar should incorporate all necessary elements of the environment and agent capabilities and be consistent, complete, and suitable for parsing DSL programs.
+
+Please make sure:
+- All valid agent actions are covered (MOVE, USE, CRAFT, IFHAS, IFNEXTTO).
+- You support semicolon-separated statements and nested blocks.
+- You include all craftable items and environmental elements where needed.
+
+Only output the grammar in **BNF format**, no extra explanations.
+
+You can base your improvements on this old version of the grammar:
+
+s ::= task SEMI s | task SEMI
+task ::= move | craft | ifhas do
+move ::= MOVE_FUNC LPAR dir RPAR
+dir ::= UP | DOWN | LEFT | RIGHT
+craft ::= CRAFT_FUNC LPAR item RPAR
+item ::= PLANK | STICK | CLOTH | ROPE | BRIDGE | BUNDLE | HAMMER | KNIFE | BED | AXE | SHEARS | LADDER | SLINGSHOT | ARROW | BOW | BENCH | FLAG | GOLDARROW
+ifhas ::= if HAS LPAR item RPAR
+kind ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
+do ::= then task
+
+## ENVIRONMENT DESCRIPTION:
+- The environment is a 12×12 grid with the following elements: boundary (impassable), water (can be crossed only by building a bridge), stone (removable with axe), and three workshops: workshop0, workshop1, workshop2.
+- Primitive grabbable resources: wood, iron, grass, rock, gold, gem.
+
+## Agent Actions:
+- MOVE(dir): direction ∈ {UP, DOWN, LEFT, RIGHT}.
+- USE: Interacts with environment — collects resources, crafts at workshops, removes obstacles.
+- CRAFT(item): Crafts an item using resources at the correct workshop.
+- IFHAS(item) DO {...}: Conditional logic if inventory has item.
+- IFNEXTTO(kind) DO {...}: Conditional logic if adjacent to environment element or item.
+
+## Crafting Recipes:
+Include the following craftable items and their ingredients/workshop:
+- plank: wood @ workshop0
+- stick: wood @ workshop1
+- cloth: grass @ workshop2
+- rope: grass @ workshop0
+- bridge: wood + iron @ workshop2
+- bundle: wood + grass @ workshop1
+- hammer: wood + rock @ workshop0
+- knife: iron + rock @ workshop2
+- bed: plank + grass @ workshop1
+- axe: stick + iron @ workshop0
+- shears: stick + iron @ workshop1
+- ladder: plank + stick @ workshop2
+- slingshot: rope + wood + rock @ workshop1
+- arrow: knife + wood @ workshop0
+- bow: rope + bundle @ workshop2
+- bench: hammer + wood + iron @ workshop2
+- flag: stick + cloth + iron @ workshop0
+- goldarrow: gold + wood @ workshop0

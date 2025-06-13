@@ -9,14 +9,47 @@ import contextlib
 from craft_func import craft
 from has_func import has
 from move_func import move
+import multiprocessing
+def run_funcs(queue, func_name, args_1, env):
+    try:
+        w = args_1[0]
+        if func_name == "move":
+            result = move(env, w)
+        elif func_name == "craft":
+            result = craft(env, w)
+        elif func_name == "has":
+            result = has(env, w) 
+        queue.put(result)
+    except Exception as e:
+        queue.put(e)
+
+def run_with_timeout(func_name, args_1, env, timeout=20):
+        queue_obj = multiprocessing.Queue()
+        p = multiprocessing.Process(target=run_funcs, args=(queue_obj, func_name, args_1, env))
+        p.start()
+        p.join(timeout)
+        if p.is_alive():
+            # print("Evaluation timed out.")
+            p.terminate()
+            p.join()
+            return -1
+        if not queue_obj.empty():
+            result = queue_obj.get()
+            if isinstance(result, Exception):
+                print("Error evaluating:", result)
+                return -1
+            return result
+        else:
+            print("No result returned.")
+            return -1
 class ProgramEvaluator:
     def __init__(self, recipes_path: str = "resources/recipes.yaml", 
                  hints_path: str = "resources/hints.yaml",
                  visualise: bool = True):
-        self.env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, max_steps=100, 
-            reuse_environments=False, visualise=visualise)
-        self.visualise = visualise
+        # self.env_sampler = env_factory.EnvironmentFactory(
+        #     recipes_path, hints_path, max_steps=100, 
+        #     reuse_environments=False, visualise=visualise)
+        # self.visualise = visualise
         self.item_map =item_id_map = {
                                 "PLANK": 13,
                                 "STICK": 14,
@@ -37,7 +70,8 @@ class ProgramEvaluator:
                                 "FLAG": 29,
                                 "GOLDARROW": 30
                             }
-        
+
+
     def parse_program(self, program: str, env: Any = None) -> List[int]:
         """Convert a program string into a list of actions."""
         actions = []
@@ -50,7 +84,11 @@ class ProgramEvaluator:
         while i < len(tokens):
             if len(tokens[i]) > 10 and tokens[i][:9] == "MOVE_FUNC":
                 dir_str = tokens[i].split('(')[1].strip(')')
-                result = move(env, dir_str)
+
+                result = run_with_timeout( "move", [dir_str], env)
+                if(result == -1):
+                    print("Evaluation timed out in move")
+                    return [], reward, False
                 r, done, observations = env.step(result)
                 if done:
                     d = True
@@ -59,12 +97,11 @@ class ProgramEvaluator:
                 
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
                 dir_str = tokens[i].split('(')[1].strip(')')
-                exec_env = {}
                 item = self.item_map[dir_str]
-                result = craft(env, item)
+                result = run_with_timeout( "craft", [item], env)
                 if(result == -1):
-                    i+=3
-                    continue
+                    print("Evaluation timed out in craft")
+                    return [], reward, False
                 for j in result:
                     r, done, observations = env.step(j)
                     if done:
@@ -82,7 +119,10 @@ class ProgramEvaluator:
                     item = condition[4:-1]  # Extract "GOLDARROW"    
                     # print("item", item)
                     item = int(self.item_map[item])
-                    result = has(env, item)
+                    result = run_with_timeout("has", [item], env)
+                    if(result == -1):
+                        print("Evaluation timed out in has")
+                        return [], reward, False
                     # print("Captured print:", printed_output.strip())
                     if(result == False):
                         i+=3
@@ -104,12 +144,12 @@ class ProgramEvaluator:
 
         return actions, reward, d
 
-    def evaluate_program(self, program: str, task_name: str = 'make[arrow]') -> Dict[str, Any]:
+    def evaluate_program(self, program: str, env) -> Dict[str, Any]:
         """Evaluate a program in the craft environment."""
         # Create environment
-        env = self.env_sampler.sample_environment(task_name=task_name)
+        # env = self.env_sampler.sample_environment(task_name=task_name)
         # print(f"Environment: task {env.task_name}: {env.task}")
-        
+        env.reset()
         # Parse program into actions using the actual environment
         actions, reward, d = self.parse_program(program, env)
         # print("actions", actions)
