@@ -13,17 +13,20 @@ final =[]
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
 
-def evaluate_program_with_evaluator(evaluator, program_str: str, env) -> int:
+def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> int:
     """
     Evaluate a program using your ProgramEvaluator.
     """
     try:
         # evaluator = ProgramEvaluator()
-        result = evaluator.evaluate_program(program_str, env)
+        result = evaluator.evaluate_program(program_str, env, time)
         # print("result", result)
 
-        if(result['success'] and all(is_terminal(sym, cfg) for sym in program_str)):
+        if(result['success']):
             final.append(program_str)
+            with open("final.txt", "a") as f:
+                for program in final:
+                    f.write(program + "\n")
         print("result", result)
         return result['total_reward']
     except Exception as e:
@@ -66,7 +69,7 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
-def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env):
+def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env, time):
     """
     Priority-queue-based program synthesis up to a given depth.
     Evaluates only fully terminal (complete) programs.
@@ -85,14 +88,14 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env):
         if all(is_terminal(sym, cfg) for sym in current):
             program_str = format_program(current)
             print("program_str", program_str)
-            result = evaluate_program_with_evaluator(evaluator, program_str, env )  # Optional timeout
+            result = evaluate_program_with_evaluator(evaluator, program_str, env, time)  # Optional timeout
 
             final_programs.append(program_str)
             continue
 
         if depth >= max_depth:
             continue
-        if(len(final) > 0):
+        if(len(final) > 1):
             break
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
@@ -102,12 +105,9 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env):
                         heapq.heappush(queue, (depth + 1, next(counter), new_derivation))
                 break  # Only expand the first non-terminal
 
-    with open("final.txt", "w") as f:
+    with open("final_all.txt", "a") as f:
         for program in final:
             f.write(program + "\n")
-
-    # Optionally write final programs to file
-
 
     return final_programs
 
@@ -119,14 +119,12 @@ if __name__ == "__main__":
     env_sampler = env_factory.EnvironmentFactory(
             recipes_path, hints_path, max_steps=100, 
             reuse_environments=False, visualise=False)
-    tasks =["make[arrow]", "make[flag]", "make[bench]", "get[gold]"]
+    tasks =[ "make[flag]",  "make[ladder]", "make[arrow]"]
+    time =[20, 20 , 20]
     envs =[]
     for task in tasks:
         envs.append(env_sampler.sample_environment(task_name=task))
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
-    for env in envs:
-        for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=15, env=env), 1):
-            print(f"\n=== Program {i} ===")
-            print(program)
-
+    for env in range(len(envs)):
+        synthesize_priority(cfg_parser, start_symbol, max_depth=10, env=envs[env], time=time[env])
