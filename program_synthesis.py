@@ -129,3 +129,4 @@ if __name__ == "__main__":
         for i, program in enumerate(synthesize_priority(cfg_parser, start_symbol, max_depth=15, env=env), 1):
             print(f"\n=== Program {i} ===")
             print(program)
+

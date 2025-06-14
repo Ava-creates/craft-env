@@ -1,3 +1,5 @@
+
+
 from typing import List, Dict, Any
 import env_factory
 import time
@@ -23,7 +25,7 @@ def run_funcs(queue, func_name, args_1, env):
     except Exception as e:
         queue.put(e)
 
-def run_with_timeout(func_name, args_1, env, timeout=20):
+def run_with_timeout(func_name, args_1, env, timeout):
         queue_obj = multiprocessing.Queue()
         p = multiprocessing.Process(target=run_funcs, args=(queue_obj, func_name, args_1, env))
         p.start()
@@ -72,7 +74,7 @@ class ProgramEvaluator:
                             }
 
 
-    def parse_program(self, program: str, env: Any = None) -> List[int]:
+    def parse_program(self, program, env, timeout) -> List[int]:
         """Convert a program string into a list of actions."""
         actions = []
         tokens = program.split()
@@ -85,7 +87,7 @@ class ProgramEvaluator:
             if len(tokens[i]) > 10 and tokens[i][:9] == "MOVE_FUNC":
                 dir_str = tokens[i].split('(')[1].strip(')')
 
-                result = run_with_timeout( "move", [dir_str], env)
+                result = run_with_timeout( "move", [dir_str], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in move")
                     return [], reward, False
@@ -98,7 +100,7 @@ class ProgramEvaluator:
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
                 dir_str = tokens[i].split('(')[1].strip(')')
                 item = self.item_map[dir_str]
-                result = run_with_timeout( "craft", [item], env)
+                result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in craft")
                     return [], reward, False
@@ -119,7 +121,7 @@ class ProgramEvaluator:
                     item = condition[4:-1]  # Extract "GOLDARROW"    
                     # print("item", item)
                     item = int(self.item_map[item])
-                    result = run_with_timeout("has", [item], env)
+                    result = run_with_timeout("has", [item], env, timeout)
                     if(result == -1):
                         print("Evaluation timed out in has")
                         return [], reward, False
@@ -144,14 +146,14 @@ class ProgramEvaluator:
 
         return actions, reward, d
 
-    def evaluate_program(self, program: str, env) -> Dict[str, Any]:
+    def evaluate_program(self, program: str, env, timeout) -> Dict[str, Any]:
         """Evaluate a program in the craft environment."""
         # Create environment
         # env = self.env_sampler.sample_environment(task_name=task_name)
         # print(f"Environment: task {env.task_name}: {env.task}")
         env.reset()
         # Parse program into actions using the actual environment
-        actions, reward, d = self.parse_program(program, env)
+        actions, reward, d = self.parse_program(program, env, timeout)
         # print("actions", actions)
         # Reset environment
         observations = env.reset()
@@ -163,14 +165,16 @@ class ProgramEvaluator:
         }
 
 def main():
-    # Example usage
     evaluator = ProgramEvaluator(visualise=True)
-    
-    # Example program
-    # program = "MOVE_FUNC(UP) ; CRAFT_FUNC(KNIFE) ; if has(KNIFE) then CRAFT_FUNC(ARROW) ; MOVE_FUNC(UP) ;"
-    program = "if has(BED) then if has(SLINGSHOT) then if has(BRIDGE) then task ;"
-    # Evaluate program
-    result = evaluator.evaluate_program(program)
+    flag  = "CRAFT_FUNC(FLAG) ;"
+    program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
+    recipes_path = "resources/recipes.yaml"
+    hints_path = "resources/hints.yaml"
+    env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, max_steps=100, 
+            reuse_environments=False, visualise=False)
+    env = env_sampler.sample_environment(task_name="make[bridge]")
+    result = evaluator.evaluate_program(program, env, 120)
     print("\nEvaluation Results:")
     print(f"Total Reward: {result['total_reward']}")
     print(f"Success: {result['success']}")
