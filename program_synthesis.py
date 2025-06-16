@@ -17,25 +17,20 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
     """
     Evaluate a program using your ProgramEvaluator.
     """
-    try:
-        # evaluator = ProgramEvaluator()
-        result = evaluator.evaluate_program(program_str, env, time)
-        # print("result", result)
 
+    try:
+        result = evaluator.evaluate_program(program_str, env, time)
         if(result['success']):
             final.append(program_str)
             with open("final2.txt", "a") as f:
                 for program in final:
                     f.write(program + "\n")
-        print("result", result)
         return result['total_reward']
     except Exception as e:
-        print("Error evaluating:", program_str, e)
         return float('-inf')
 
 
 def format_program(tokens: List[str]) -> str:
-    # (Same formatting logic as before)
     result = []
     i = 0
     while i < len(tokens):
@@ -99,15 +94,15 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
             program_str = format_program(current)
             print("program_str", program_str)
             for ind in range(len(envs)):
+                print(envs[ind].task_name)
                 evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time[ind])
-
             final_programs.append(program_str)
             continue
 
         if depth >= max_depth:
             continue
-        if(len(final) > 1):
-            break
+        # if(len(final) > 1):
+        #     break
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
                 for production in cfg.rules[sym]:
@@ -138,4 +133,4 @@ if __name__ == "__main__":
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
     
-    synthesize_priority(cfg_parser, start_symbol, max_depth=15)
+    synthesize_priority(cfg_parser, start_symbol, max_depth=17)
