@@ -24,7 +24,7 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
 
         if(result['success']):
             final.append(program_str)
-            with open("final.txt", "a") as f:
+            with open("final2.txt", "a") as f:
                 for program in final:
                     f.write(program + "\n")
         print("result", result)
@@ -69,7 +69,7 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
-def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env, time):
+def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
     """
     Priority-queue-based program synthesis up to a given depth.
     Evaluates only fully terminal (complete) programs.
@@ -81,6 +81,16 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env, 
 
     evaluator = ProgramEvaluator()
     final_programs = []
+    recipes_path = "resources/recipes.yaml"
+    hints_path = "resources/hints.yaml"
+    env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, max_steps=100, 
+            reuse_environments=False, visualise=False)
+    tasks =[ "make[ladder]", "make[arrow]"]
+    time =[20, 20 , 20]
+    envs =[]
+    for task in tasks:
+        envs.append(env_sampler.sample_environment(task_name=task))
 
     while queue:
         depth, _, current = heapq.heappop(queue)
@@ -88,7 +98,8 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env, 
         if all(is_terminal(sym, cfg) for sym in current):
             program_str = format_program(current)
             print("program_str", program_str)
-            result = evaluate_program_with_evaluator(evaluator, program_str, env, time)  # Optional timeout
+            for ind in range(len(envs)):
+                evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time[ind])
 
             final_programs.append(program_str)
             continue
@@ -114,17 +125,17 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, env, 
 if __name__ == "__main__":
     cfg_parser = CFGParser("cfg.txt")
     start_symbol = "s"
-    recipes_path = "resources/recipes.yaml"
-    hints_path = "resources/hints.yaml"
-    env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, max_steps=100, 
-            reuse_environments=False, visualise=False)
-    tasks =[ "make[shears]",  "make[ladder]", "make[arrow]"]
-    time =[20, 20 , 20]
-    envs =[]
-    for task in tasks:
-        envs.append(env_sampler.sample_environment(task_name=task))
+    # recipes_path = "resources/recipes.yaml"
+    # hints_path = "resources/hints.yaml"
+    # env_sampler = env_factory.EnvironmentFactory(
+    #         recipes_path, hints_path, max_steps=100, 
+    #         reuse_environments=False, visualise=False)
+    # tasks =[ "make[shears]",  "make[ladder]", "make[arrow]"]
+    # time =[20, 20 , 20]
+    # envs =[]
+    # for task in tasks:
+    #     envs.append(env_sampler.sample_environment(task_name=task))
     print(f"Start symbol: {start_symbol}")
     print("\nGenerating programs (worklist)...")
-    for env in range(len(envs)):
-        synthesize_priority(cfg_parser, start_symbol, max_depth=10, env=envs[env], time=time[env])
+    
+    synthesize_priority(cfg_parser, start_symbol, max_depth=15)

@@ -52,8 +52,7 @@ class ProgramEvaluator:
         #     recipes_path, hints_path, max_steps=100, 
         #     reuse_environments=False, visualise=visualise)
         # self.visualise = visualise
-        self.item_map =item_id_map = {
-                                "GRASS": 8,      
+        self.item_map =item_id_map = {     
                                 "PLANK": 13,
                                 "STICK": 14,
                                 "CLOTH": 15,
@@ -165,20 +164,20 @@ class ProgramEvaluator:
             "success": d and total_reward > 0,
         }
 
-def main():
-    evaluator = ProgramEvaluator(visualise=True)
-    flag  = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(SHEARS) ;"
-    program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
-    recipes_path = "resources/recipes.yaml"
-    hints_path = "resources/hints.yaml"
-    env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, max_steps=100, 
-            reuse_environments=False, visualise=False)
-    env = env_sampler.sample_environment(task_name="make[shears]")
-    result = evaluator.evaluate_program(flag, env, 300)
-    print("\nEvaluation Results:")
-    print(f"Total Reward: {result['total_reward']}")
-    print(f"Success: {result['success']}")
+# def main():
+#     evaluator = ProgramEvaluator(visualise=True)
+#     flag  = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(SHEARS) ;"
+#     program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
+#     recipes_path = "resources/recipes.yaml"
+#     hints_path = "resources/hints.yaml"
+#     env_sampler = env_factory.EnvironmentFactory(
+#             recipes_path, hints_path, max_steps=100, 
+#             reuse_environments=False, visualise=False)
+#     env = env_sampler.sample_environment(task_name="make[shears]")
+#     result = evaluator.evaluate_program(flag, env, 300)
+#     print("\nEvaluation Results:")
+#     print(f"Total Reward: {result['total_reward']}")
+#     print(f"Success: {result['success']}")
 
-if __name__ == "__main__":
-    main() 
+# if __name__ == "__main__":
+#     main() 
