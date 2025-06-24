@@ -88,6 +88,7 @@ class CraftWorld(object):
 
   def sample_scenario(self, make_island=False, make_cave=False):
     # generate grid
+    # print(self.cookbook.n_kinds)
     grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
     i_bd = self.cookbook.index["boundary"]
     grid[0, :, i_bd] = 1
@@ -313,7 +314,7 @@ class CraftState(object):
           continue
 
         if here.sum() > 1:
-          logging.error("impossible world configuration:")
+          print("impossible world configuration:")
           logging.error(here.sum())
           logging.error(self.grid.sum(axis=2))
           logging.error(self.grid.sum(axis=0).sum(axis=0))

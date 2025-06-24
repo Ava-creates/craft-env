@@ -73,6 +73,7 @@ class EnvironmentFactory(object):
 
   def _create_environment(self, task_name):
     # Get the task
+    
     task = self.tasks[task_name]
     # print(self.tasks, "printing out th etasks")
     goal_arg = task.goal[1]

@@ -5,10 +5,10 @@ def craft(env, item):
                 
                 while queue:
                     current_state, path = queue.pop(0)
-                    
+                    # print(len(path))
                     # Convert the state to a hashable format for storing in visited set
                     state_hash = tuple(current_state.grid.flatten()) + tuple(current_state.inventory) + (current_state.pos, current_state.dir)
-
+                    
                     if state_hash in visited_states:
                         continue
                     

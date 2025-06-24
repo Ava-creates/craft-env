@@ -52,7 +52,10 @@ class ProgramEvaluator:
         #     recipes_path, hints_path, max_steps=100, 
         #     reuse_environments=False, visualise=visualise)
         # self.visualise = visualise
-        self.item_map =item_id_map = {     
+        self.item_map =item_id_map = { 
+                                "WOOD": 9,
+                                "IRON": 7,
+                                "GRASS": 8,
                                 "PLANK": 13,
                                 "STICK": 14,
                                 "CLOTH": 15,
@@ -98,8 +101,12 @@ class ProgramEvaluator:
                 i += 1
                 
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
+                print("VDFS \n", env._current_state.inventory, "\n")
+
                 dir_str = tokens[i].split('(')[1].strip(')')
+                # print("dir_str", dir_str)
                 item = self.item_map[dir_str]
+                print("item", dir_str)
                 result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in craft")
@@ -164,20 +171,23 @@ class ProgramEvaluator:
             "success": d and total_reward > 0,
         }
 
-# def main():
-#     evaluator = ProgramEvaluator(visualise=True)
-#     flag  = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(SHEARS) ;"
-#     program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
-#     recipes_path = "resources/recipes.yaml"
-#     hints_path = "resources/hints.yaml"
-#     env_sampler = env_factory.EnvironmentFactory(
-#             recipes_path, hints_path, max_steps=100, 
-#             reuse_environments=False, visualise=False)
-#     env = env_sampler.sample_environment(task_name="make[shears]")
-#     result = evaluator.evaluate_program(flag, env, 300)
-#     print("\nEvaluation Results:")
-#     print(f"Total Reward: {result['total_reward']}")
-#     print(f"Success: {result['success']}")
+def main():
+    evaluator = ProgramEvaluator(visualise=True)
+    # flag  = "CRAFT_FUNC(HAMMER) ; CRAFT_FUNC(WOOD) ; CRAFT_FUNC(IRON) ; CRAFT_FUNC(BENCH) ;"
+    flag ="CRAFT_FUNC(ROPE) ; CRAFT_FUNC(BUNDLE) ; CRAFT_FUNC(BOW) ;"
+    program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
+    recipes_path = "resources/recipes.yaml"
+    hints_path = "resources/hints.yaml"
+    env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, max_steps=100, 
+            reuse_environments=False, visualise=False)
+    env = env_sampler.sample_environment(task_name="make[bow]")
+    print("VDFS \n", env.world.cookbook.index, "\n")
 
-# if __name__ == "__main__":
-#     main() 
+    result = evaluator.evaluate_program(flag, env, 300)
+    print("\nEvaluation Results:")
+    print(f"Total Reward: {result['total_reward']}")
+    print(f"Success: {result['success']}")
+
+if __name__ == "__main__":
+    main() 
