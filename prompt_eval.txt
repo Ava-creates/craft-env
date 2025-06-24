@@ -29,10 +29,11 @@
 
   def pick_up_at_position(x, y):
       move_to_position(x, y)
+      env._current_state.pos = (x, y)
       for _ in range(4):  # Try all directions
           env._current_state.dir = _
           if env._current_state.grid[x, y].argmax() == primitive:
-              actions.append(4)  # USE action
+              actions.append(4)  # Append USE action
               return True
       return False
 

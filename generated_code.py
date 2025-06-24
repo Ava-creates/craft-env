@@ -419,52 +419,91 @@ def craft(env, item) -> list[int]:
           if abs(dx) > abs(dy):  # Move horizontally first if needed
               if dx < 0:
                   actions.append(2)  # LEFT
+                  env._current_state.pos = (env._current_state.pos[0] - 1, env._current_state.pos[1])
+                  env._current_state.dir = 2
                   dx += 1
               elif dx > 0:
                   actions.append(3)  # RIGHT
+                  env._current_state.pos = (env._current_state.pos[0] + 1, env._current_state.pos[1])
+                  env._current_state.dir = 3
                   dx -= 1
           else:  # Move vertically
               if dy < 0:
                   actions.append(0)  # DOWN
+                  env._current_state.pos = (env._current_state.pos[0], env._current_state.pos[1] - 1)
+                  env._current_state.dir = 0
                   dy += 1
               elif dy > 0:
                   actions.append(1)  # UP
+                  env._current_state.pos = (env._current_state.pos[0], env._current_state.pos[1] + 1)
+                  env._current_state.dir = 1
                   dy -= 1
 
   def pick_up_at_position(x, y):
       move_to_position(x, y)
-      for _ in range(4):  # Try all directions
-          env._current_state.dir = _
-          if env._current_state.grid[x, y].argmax() == primitive:
-              actions.append(4)  # USE action
-              return True
-      return False
+      
+      # Align direction to the target position
+      current_x, current_y = env._current_state.pos
+      dx, dy = x - current_x, y - current_y
+      
+      if dx == 0 and dy < 0:
+          actions.append(0)  # DOWN
+      elif dx == 0 and dy > 0:
+          actions.append(1)  # UP
+      elif dx < 0 and dy == 0:
+          actions.append(2)  # LEFT
+      elif dx > 0 and dy == 0:
+          actions.append(3)  # RIGHT
+      
+      actions.append(4)  # Append USE action to pick up the item
+      env._current_state.inventory[primitive] += 1
 
   def craft_at_workshop():
-      for workshop in env.world.workshop_indices:
-          move_to_position(workshop // env._current_state.grid.shape[1], workshop % env._current_state.grid.shape[1])
-          actions.append(4)  # USE to craft the item
+      workshop_positions = [(w // env._current_state.grid.shape[1], w % env._current_state.grid.shape[1]) for w in env.world.workshop_indices]
+      
+      # Find the closest workshop
+      closest_workshop = min(workshop_positions, key=lambda pos: abs(pos[0] - env._current_state.pos[0]) + abs(pos[1] - env._current_state.pos[1]))
+      
+      move_to_position(*closest_workshop)
+      actions.append(4)  # USE to craft the item
 
-  recipe = env.world.cookbook.primitives_for(item)
-  
-  if not recipe:
-      raise ValueError("No recipe available to craft the desired item.")
-
-  actions = []
-  
-  # Main logic to collect all required primitives
-  for primitive, count in recipe.items():
+  def collect_primitives(primitive, count):
       positions = get_primitive_positions(primitive)
       
       if len(positions) < count:
           raise ValueError(f"Not enough primitives {env.world.cookbook.index.get(primitive)} available to craft the desired item.")
       
-      for x, y in positions[:count]:
-          pick_up_at_position(x, y)
+      while env._current_state.inventory[primitive] < count:
+          for x, y in positions:
+              pick_up_at_position(x, y)
 
-  # Craft at a workshop
-  craft_at_workshop()
+  def get_crafting_sequence(item):
+      recipe = env.world.cookbook.primitives_for(item)
+      if not recipe:
+          raise ValueError("No recipe available to craft the desired item.")
+      
+      sequence = []
+      while item not in env._current_state.inventory:
+          for primitive, count in recipe.items():
+              sequence.extend(collect_primitives(primitive, count))
+          sequence.append(craft_at_workshop())
+          
+          # Simulate crafting
+          env._current_state.inventory[item] += 1
+      return sequence
+
+  actions = []
   
+  # Get the crafting sequence
+  crafting_sequence = get_crafting_sequence(item)
+  
+  # Collect all required primitives and craft the item
+  for action in crafting_sequence:
+      if isinstance(action, list):
+          actions.extend(action)
+      else:
+          actions.append(action)
+
   return actions
 
  
