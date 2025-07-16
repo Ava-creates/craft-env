@@ -40,35 +40,63 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 def craft_func(env, item_index):
+  
+    """Crafts an item by moving to the appropriate workshop after collecting all necessary primitives.
+
+    Args:
+        env (CraftLab): The environment in which the agent acts.
+        item_index (int): Index of the item to be crafted.
+
+    Returns:
+        list[int]: List of actions required to craft the item.
+    """
+    # Get the current state from the environment
+    current_state = env._current_state
     
-    # Dictionary mapping item indices to their crafting recipes
-    cookbook = env.world.cookbook.recipes
+    # Get the primitives needed for the item
+    cookbook = current_state.world.cookbook
+    primitives_needed = cookbook.primitives_for(item_index)
     
-    # Get the recipe for the desired item
-    recipe = cookbook[item_index]
-    
-    # Initialize a list to hold actions
     actions = []
     
-    # Collect all primitives needed for the recipe
-    for primitive, count in recipe.items():
-        if isinstance(primitive, int):  # Ignore "_at" and "_yield"
-            while env._current_state.inventory[primitive] < count:
-                if env._current_state.next_to(primitive):
-                    actions.append(env.action_specs()['USE'])
-                else:
-                    # Move towards the primitive (assuming we have a simple heuristic to find it)
-                    actions.extend(move_towards_primitive(env, primitive))
+    # Collect all needed primitives
+    for primitive, count in primitives_needed.items():
+        while np.sum(current_state.inventory[primitive]) < count:
+            # Find a location with the needed primitive
+            locations = np.argwhere(current_state.grid[:, :, primitive] > 0)
+            
+            if len(locations) == 0:
+                print(f"No available {primitive} to collect.")
+                break
+            
+            for loc in locations:
+                x, y = loc
+                agent_x, agent_y = current_state.pos
+                
+                # Move to the location of the primitive
+                if agent_x < x:
+                    actions.append(env.action_specs()['RIGHT'])
+                elif agent_x > x:
+                    actions.append(env.action_specs()['LEFT'])
+                if agent_y < y:
+                    actions.append(env.action_specs()['DOWN'])
+                elif agent_y > y:
+                    actions.append(env.action_specs()['UP'])
+                
+                # Collect the primitive
+                actions.append(env.action_specs()['USE'])
+                
+                # Update the current state after collecting the primitive
+                _, current_state = current_state.step(actions[-1])
     
-    # Go to the workshop where the item can be crafted
-    workshop = recipe["_at"]
-    workshop_index = env.world.cookbook.index[workshop]
-    while not env._current_state.next_to(workshop_index):
-        # Move towards the workshop (assuming we have a simple heuristic to find it)
-        actions.extend(move_towards_workshop(env, workshop_index))
-    
-    # Craft the item at the workshop
-    actions.append(env.action_specs()['USE'])
+    # Find a workshop to craft the item
+    workshops = [cookbook.index["WORKSHOP0"], cookbook.index["WORKSHOP1"], cookbook.index["WORKSHOP2"]]
+    for workshop in workshops:
+        if current_state.next_to(workshop):
+            actions.append(env.action_specs()['USE'])
+            break
+    else:
+        print("No available workshop to craft the item.")
     
     return actions
 

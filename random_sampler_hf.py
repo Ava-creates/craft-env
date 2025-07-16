@@ -24,23 +24,8 @@ def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
   item = 14 
   actions_to_take = craft_func(env, 14)
-  print("actions", actions_to_take)
-  observations = env.reset()
-  total_reward = 0.0
 
-  for t in range(len(actions_to_take)):
-    action = actions_to_take[t]
-    reward, done, observations = env.step(action)
-    print(reward)
-    total_reward += reward
-    # print(env._current_state.satisfies(None, 14))
-    if reward:
-      rewarding_frame = observations['image'].copy()
-      rewarding_frame[:40] *= np.array([0, 1, 0])
-    elif done:
-      break
-
-  return total_reward
+  return actions_to_take
 
 
 def evaluate() -> float:
@@ -98,7 +83,7 @@ print(evaluate())
 with open("prompt.txt", 'r') as f:
         prompt = f.read()
 # Replace with your actual downloaded path
-local_model_path = scratch_dir  # from your snapshot_download
+local_model_path = "/scratch/avani/qwen"  # from your snapshot_download
 
 tokenizer = AutoTokenizer.from_pretrained(local_model_path, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
@@ -112,29 +97,31 @@ model.eval()
 
 input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(model.device)
 for i in range(1000):
-    with torch.no_grad():
-        outputs = model.generate(
-            input_ids=input_ids,
-            max_new_tokens=512,
-            do_sample=True,  # deterministic; set to True for sampling
-            temperature=0.8,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.eos_token_id
-        )
 
-    # Remove prompt from response
-    decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    res = decoded[len(prompt):]
+    try:
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=input_ids,
+                max_new_tokens=512,
+                do_sample=True, 
+                temperature=0.8,
+                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.eos_token_id
+            )
 
-    # Optional: Trim on stop tokens manually
-    for stop in stop_tokens:
-        if stop in res:
-            res = res.split(stop)[0]
-            break
+        decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        res = decoded[len(prompt):]
 
-    log_entry = {
-        'function_body': res,
-        'scores': eval(res)
-    }
-    with open("meow_hf.log", "a") as f:
-        f.write(json.dumps(log_entry) + '\n')
+        for stop in stop_tokens:
+            if stop in res:
+                res = res.split(stop)[0]
+                break
+
+        log_entry = {
+            'function_body': res,
+            'scores': eval(res)
+        }
+        with open("meow_hf.log", "a") as f:
+            f.write(json.dumps(log_entry) + '\n')
+    except Exception as e:
+        print(e)
