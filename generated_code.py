@@ -40,57 +40,41 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 def craft_func(env, item_index):
- # TODO: Implement this function
-    """Returns a list of actions that we will take to craft the item at the item_index. Crafting an item requires collecting the primitives/items needed and then going to one of the workshops to craft the item."""
-    
-    # Get the cookbook from the world environment
-    cookbook = env.world.cookbook
-    
-    # Find the recipe for the desired item
-    recipe = None
-    for output, inputs in cookbook.recipes.items():
-        if output == item_index:
-            recipe = inputs
+  
+  # Get the primitives/items required to craft the given item
+  task = env.task
+  goal_name, goal_arg = task.goal
+
+  # Get all items needed in the recipe for the goal
+  needed_items = env.world.cookbook.primitives_for(item_index)
+
+  actions = []
+  
+  # Collect the needed items
+  for primitive, count in needed_items.items():
+    while np.sum(env._current_state.inventory[primitive]) < count:
+      if not env._current_state.next_to(primitive):
+        # Move to a workshop where we can find this item
+        workshops_for_item = env.world.cookbook.workshops_for(primitive)
+        for workshop in workshops_for_item:
+          # Check if the current state is next to any of these workshops
+          if env._current_state.next_to(workshop):
             break
-            
-    if recipe is None:
-        raise ValueError(f"No recipe found for item index {item_index}")
-        
-    # Collect primitives needed for the recipe
-    actions = []
-    required_primitives = [i for i in recipe if isinstance(i, int)]
-    required_counts = {primitive: recipe[primitive] for primitive in required_primitives}
-    
-    while not all(env._current_state.inventory[primitive] >= count for primitive, count in required_counts.items()):
-        # Find a nearby primitive and collect it
-        for primitive in required_primitives:
-            if env._current_state.next_to(primitive):
-                actions.append(env.action_specs()['USE'])  # Collect the item
-                break
         else:
-            # If no primitives are next to us, move randomly (for simplicity)
-            possible_moves = [env.action_specs()[dir] for dir in ['UP', 'DOWN', 'LEFT', 'RIGHT']]
-            action = np.random.choice(possible_moves)
-            actions.append(action)
-            
-    # Go to a workshop and craft the item
-    workshops = [i for i, is_workshop in enumerate(cookbook.recipes[output]) if isinstance(is_workshop, str) and "WORKSHOP" in is_workshop]
-    if not workshops:
-        raise ValueError("No workshop found to craft the item")
-    
-    # For simplicity, let's assume we can go directly to a workshop (no pathfinding)
-    workshop_index = workshops[0]  # Just pick the first workshop for now
-    
-    # Move to the workshop
-    while not env._current_state.next_to(workshop_index):
-        possible_moves = [env.action_specs()[dir] for dir in ['UP', 'DOWN', 'LEFT', 'RIGHT']]
-        action = np.random.choice(possible_moves)
-        actions.append(action)
-        
-    # Craft the item at the workshop
+          # If no workshop is adjacent, move to one (for simplicity, we'll assume a workshop is always reachable)
+          actions.extend(move_actions(env, primitive))
+      
+      # Craft the item at the workshop
+      actions.append(env.action_specs()['USE'])
+  
+  # Once all items are collected, craft the goal item
+  if env._current_state.next_to(env.world.cookbook.workshops_for(goal_arg)[0]):
+    actions.append(env.action_specs()['USE'])
+  else:
+    actions.extend(move_actions(env, goal_arg))
     actions.append(env.action_specs()['USE'])
     
-    return actions
+  return actions
 
 
 print(evaluate())

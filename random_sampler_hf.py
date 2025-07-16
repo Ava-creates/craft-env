@@ -116,7 +116,7 @@ for i in range(1000):
         outputs = model.generate(
             input_ids=input_ids,
             max_new_tokens=512,
-            do_sample=False,  # deterministic; set to True for sampling
+            do_sample=True,  # deterministic; set to True for sampling
             temperature=0.8,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id
