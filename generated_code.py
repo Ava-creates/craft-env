@@ -41,51 +41,55 @@ def evaluate() -> float:
 
 def craft_func(env, item_index):
  
-    """Crafting an item requires collecting the primitives/items needed and then going to one of the workshops to craft the item.
+    """Craft the specified item by collecting required primitives and using a workshop."""
     
-    This function crafts the given item by:
-    - Collecting all necessary primitives for crafting the item
-    - Going to a workshop and using the primitives to craft the item
+    # Define action indices
+    DOWN = 0
+    UP = 1
+    LEFT = 2
+    RIGHT = 3
+    USE = 4
     
-    Args:
-        env (CraftLab): The environment in which the agent operates.
-        item_index (int): Index of the item to be crafted in the cookbook.
-        
-    Returns:
-        list[int]: A sequence of actions that will lead to crafting the desired item.
-    """
+    actions = []
     
-    # Access the world and cookbook from the environment
-    world = env.world
-    cookbook = world.cookbook
+    # Get the recipe for the desired item
+    cookbook = env.world.cookbook.recipes
+    recipe = cookbook[item_index]
     
-    # Get primitives needed for the given item_index
-    needed_primitives = cookbook.primitives_for(item_index)
+    # Collect required primitives
+    required_primitives = {i: quantity for i, quantity in recipe.items() if isinstance(i, int)}
     
-    action_sequence = []
+    # Function to move to a specific location (x, y)
+    def move_to(x, y):
+        current_x, current_y = env._current_state.pos
+        dx, dy = x - current_x, y - current_y
+        actions.extend([RIGHT] * dx if dx > 0 else [LEFT] * abs(dx))
+        actions.extend([DOWN] * dy if dy > 0 else [UP] * abs(dy))
     
-    # Collect all necessary primitives
-    for primitive, count in needed_primitives.items():
-        while np.sum(env._current_state.inventory[primitive]) < count:
-            # Check if we are next to the primitive
-            if env._current_state.next_to(primitive):
-                action_sequence.append(env.action_specs()['USE'])
-            else:
-                # Move randomly to find the primitive (simple strategy)
-                direction = np.random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
-                action_sequence.append(env.action_specs()[direction])
-                
-    # Go to a workshop and use primitives to craft the item
-    for workshop in range(3):  # Assuming there are 3 workshops indexed 0, 1, 2
-        if env._current_state.next_to(world.cookbook.index[f"WORKSHOP{workshop}"]):
-            action_sequence.append(env.action_specs()['USE'])
-            break
-        else:
-            # Move randomly to find a workshop (simple strategy)
-            direction = np.random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
-            action_sequence.append(env.action_specs()[direction])
+    # Collect each required primitive
+    for primitive_index, quantity in required_primitives.items():
+        while env._current_state.inventory[primitive_index] < quantity:
+            # Find the nearest location of this primitive
+            locations = np.argwhere(env._current_state.grid[:, :, primitive_index])
+            if not locations.size:
+                raise ValueError(f"No {env.world.cookbook.index.get(primitive_index)} found in the environment.")
+            
+            closest_location = min(locations, key=lambda loc: np.linalg.norm(np.array(loc) - np.array(env._current_state.pos)))
+            move_to(*closest_location)
+            
+            # Collect the primitive
+            actions.append(USE)
     
-    return action_sequence
+    # Move to a workshop and craft the item
+    workshop_index = recipe["_at"]
+    workshops = env.world.cookbook.recipes[workshop_index]
+    closest_workshop = min(workshops, key=lambda loc: np.linalg.norm(np.array(loc) - np.array(env._current_state.pos)))
+    move_to(*closest_workshop)
+    
+    # Craft the item
+    actions.append(USE)
+    
+    return actions
 
 
 print(evaluate())
