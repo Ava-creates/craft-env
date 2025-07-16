@@ -7,24 +7,24 @@ import env_factory
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
   item = 14
-  actions_to_take = craft(env, item)
-  print("actions", actions_to_take)
-  observations = env.reset()
-  total_reward = 0.0
+  reward = craft(env, 14)
+#   print("actions", actions_to_take)
+#   observations = env.reset()
+#   total_reward = 0.0
 
-  for t in range(len(actions_to_take)):
-    action = actions_to_take[t]
-    reward, done, observations = env.step(action)
-    print(reward)
-    total_reward += reward
-    # print(env._current_state.satisfies(None, 14))
-    if reward:
-      rewarding_frame = observations['image'].copy()
-      rewarding_frame[:40] *= np.array([0, 1, 0])
-    elif done:
-      break
+#   for t in range(len(actions_to_take)):
+#     action = actions_to_take[t]
+#     reward, done, observations = env.step(action)
+#     print(reward)
+#     total_reward += reward
+#     # print(env._current_state.satisfies(None, 14))
+#     if reward:
+#       rewarding_frame = observations['image'].copy()
+#       rewarding_frame[:40] *= np.array([0, 1, 0])
+#     elif done:
+#       break
 
-  return total_reward
+  return reward
 
 
 def evaluate() -> float:
@@ -41,101 +41,104 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 
+def craft(env, item_index) -> float:
+  from collections import deque
+  
+  # Action constants
+  DOWN, UP, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
+  
+  def move_towards(pos, target):
+    """Returns the next action to move from pos to target using greedy policy."""
+    x, y = pos
+    tx, ty = target
+    if tx < x:
+      return LEFT
+    elif tx > x:
+      return RIGHT
+    elif ty < y:
+      return DOWN
+    elif ty > y:
+      return UP
+    return None
 
-def craft(env, item) -> list[int]:
-      """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-      print(env._current_state.pos)
-      def get_primitive_positions(primitive):
-          positions = []
-          for x in range(env._current_state.grid.shape[0]):
-              for y in range(env._current_state.grid.shape[1]):
-                  if env._current_state.grid[x, y].argmax() == primitive:
-                      positions.append((x, y))
-          return positions
+  def find_positions(kind_index, grid):
+    """Return list of (x, y) where kind_index is located."""
+    positions = []
+    for x in range(grid.shape[0]):
+      for y in range(grid.shape[1]):
+        if grid[x, y, kind_index]:
+          positions.append((x, y))
+    return positions
 
-      def move_to_position(x, y):
-          current_x, current_y = env._current_state.pos
-          dx, dy = x - current_x, y - current_y
+  def get_current_pos():
+    return env._current_state.pos
 
-          # Adjust direction and move step by step
-          while dx != 0 or dy != 0:
-              if abs(dx) > abs(dy):  # Move horizontally first if needed
-                  if dx < 0:
-                      actions.append(2)  # LEFT
-                      env._current_state.pos = (env._current_state.pos[0] - 1, env._current_state.pos[1])
-                      env._current_state.dir = 2
-                      dx += 1
-                  elif dx > 0:
-                      actions.append(3)  # RIGHT
-                      env._current_state.pos = (env._current_state.pos[0] + 1, env._current_state.pos[1])
-                      env._current_state.dir = 3
-                      dx -= 1
-              else:  # Move vertically
-                  if dy < 0:
-                      actions.append(0)  # DOWN
-                      env._current_state.pos = (env._current_state.pos[0], env._current_state.pos[1] - 1)
-                      env._current_state.dir = 0
-                      dy += 1
-                  elif dy > 0:
-                      actions.append(1)  # UP
-                      env._current_state.pos = (env._current_state.pos[0], env._current_state.pos[1] + 1)
-                      env._current_state.dir = 1
-                      dy -= 1
+  def is_done():
+    return env._is_done()
 
-      def pick_up_at_position(x, y):
-          move_to_position(x, y)
-          # Align direction to the target position
-          current_x, current_y = env._current_state.pos
-          dx, dy = x - current_x, y - current_y
+  reward = 0.0
+  steps = 0
+  max_steps = env.max_steps
 
-          if dx == 0 and dy < 0:
-              actions.append(0)  # DOWN
-              env._current_state.dir = 0
-          elif dx == 0 and dy > 0:
-              actions.append(1)  # UP
-              env._current_state.dir = 1
-          elif dx < 0 and dy == 0:
-              actions.append(2)  # LEFT
-              env._current_state.dir = 2
-          elif dx > 0 and dy == 0:
-              actions.append(3)  # RIGHT
-              env._current_state.dir = 3
+  obs = env.observations()
+  needed = env.world.cookbook.primitives_for(item_index)
+  # Include goal itself to monitor pickup
+  needed[item_index] = 1
 
-          actions.append(4)  # USE to pick up the item
-          env._current_state.inventory[primitive] += 1
+  while not is_done() and steps < max_steps:
+    obs = env.observations()
+    state = env._current_state
+    pos = state.pos
+    grid = obs["features_dict"]["features_global"]
+    inventory = state.inventory.copy()
 
-      def craft_at_workshop():
-          for workshop in env.world.workshop_indices:
-              move_to_position(workshop // env._current_state.grid.shape[1],
-                              workshop % env._current_state.grid.shape[1])
-              actions.append(4)  # USE to craft the item
-              break
+    # Determine what we still need
+    to_get = {item: count for item, count in needed.items() if inventory[item] < count}
+    if not to_get:
+      # Have everything, try crafting at workshop
+      crafted = False
+      for i_ws in env.world.workshop_indices:
+        workshop_positions = find_positions(i_ws, grid)
+        for wp in workshop_positions:
+          if abs(wp[0] - pos[0]) + abs(wp[1] - pos[1]) == 1:
+            reward_step, done, _ = env.step(USE)
+            reward += reward_step
+            steps += 1
+            crafted = True
+            break
+        if crafted:
+          break
+      else:
+        # Move toward nearest workshop
+        target = workshop_positions[0] if workshop_positions else None
+        if target:
+          action = move_towards(pos, target)
+          if action is not None:
+            reward_step, done, _ = env.step(action)
+            reward += reward_step
+            steps += 1
+      continue
 
-      # Main crafting logic
-      recipe = env.world.cookbook.primitives_for(item)
+    # Otherwise, go collect needed items
+    for item in to_get:
+      positions = find_positions(item, grid)
+      if not positions:
+        continue
+      target = positions[0]
+      if abs(target[0] - pos[0]) + abs(target[1] - pos[1]) == 1:
+        reward_step, done, _ = env.step(USE)
+        reward += reward_step
+        steps += 1
+      else:
+        action = move_towards(pos, target)
+        if action is not None:
+          reward_step, done, _ = env.step(action)
+          reward += reward_step
+          steps += 1
+      break
 
-      if not recipe:
-          raise ValueError("No recipe available to craft the desired item.")
+  return reward
 
-      actions = []
-
-      # Collect all required primitives
-      for primitive, count in recipe.items():
-          positions = get_primitive_positions(primitive)
-
-          if len(positions) < count:
-              raise ValueError(f"Not enough primitives {env.world.cookbook.index.get(primitive)} available to craft the desired item.")
-
-          while env._current_state.inventory[primitive] < count:
-              for x, y in positions:
-                  pick_up_at_position(x, y)
-
-      # Craft at a workshop
-      craft_at_workshop()
-      # print("here", env._current_state.satisfies(None, 14))
-      print(env._current_state.pos)
-      print(env)
-      return actions
 
 
 print(evaluate()) 

@@ -2,7 +2,7 @@
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
   item = 14 
-  actions_to_take = craft(env, item)
+  actions_to_take = craft_func(env, item)
   observations = env.reset()
   total_reward = 0.0
 
@@ -30,6 +30,6 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 @funsearch.evolve
-def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
+def craft_func(env, item_index) -> list[int]:
+  """Returns a list of actions that we will take to craft the item at the item_index. Crafting an item requires collecting the primitives/items needed and then going to one of the workshops to craft the item."""
   return []

@@ -172,7 +172,7 @@ n_features: int total size of the feature vector (depends on window size and n_k
 n_actions: int number of possible actions (N_ACTIONS)
 non_grabbable_indices: set of int indices for entities that cannot be picked up
 grabbable_indices: list of int indices for entities that can be picked up
-workshop_indices: list of int indices for workshop locations
+workshop_indices: list of int indices for different types workshop locations
 water_index: int index for the “water” entity
 stone_index: int index for the “stone” entity
 random: numpy.random.RandomState initialized with the given seed
@@ -356,8 +356,28 @@ _extra_pickup_penalty: float
 _current_state: CraftState instance
 """
 
+"""The DSL ->
+s ::= task SEMI s | task SEMI
+task ::= move | craft | ifhas do
+move ::= MOVE_FUNC LPAR dir RPAR
+dir ::= UP | DOWN | LEFT | RIGHT
+craft ::= CRAFT_FUNC LPAR item RPAR
+collect ::= COLLECT_FUNC LPAR kind RPAR
+item ::= PLANK | STICK | CLOTH | ROPE | BRIDGE | BUNDLE | HAMMER | KNIFE | BED | AXE | SHEARS | LADDER | SLINGSHOT | ARROW | BOW | BENCH | FLAG | GOLDARROW
+ifhas ::= if HAS LPAR item RPAR
+kind ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
+do ::= then task
+"""
+"""
+Here is an example program in this language->
+MOVE_FUNC(UP);
+COLLECT_FUNC(WOOD);
+CRAFT_FUNC(PLANK);
+if HAS(PLANK) then CRAFT_FUNC(BRIDGE);
+MOVE_FUNC(RIGHT);
+""""
 
-"""Implements a craft terminal function for DSL for using the CraftLab class provided."""  
+"""Implements a craft that will work as CRAFT_FUNC terminal function for the above Domain Specific Language that I want to use to write programs like the one above to play the craft game."""  
 
 
 

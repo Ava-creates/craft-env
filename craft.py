@@ -84,7 +84,7 @@ class CraftWorld(object):
     if (goal not in self.cookbook.primitives and goal not in self.cookbook.recipes):
       raise ValueError("Don't know how to build a scenario for %s" % goal)
 
-    return self.sample_scenario(make_island=make_island, make_cave=make_cave)
+    return self.sample_scenario_simple(make_island=make_island, make_cave=make_cave)
 
   def sample_scenario(self, make_island=False, make_cave=False):
     # generate grid
@@ -128,29 +128,29 @@ class CraftWorld(object):
 
     return CraftScenario(grid, init_pos, self)
 
-  # def sample_scenario(self, make_island=False, make_cave=False):
-  #       # Create empty grid
-  #       grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+  def sample_scenario_simple(self, make_island=False, make_cave=False):
+        # Create empty grid
+        grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
         
-  #       # Add boundary
-  #       i_bd = self.cookbook.index["boundary"]
-  #       grid[0, :, i_bd] = 1
-  #       grid[WIDTH - 1:, :, i_bd] = 1
-  #       grid[:, 0, i_bd] = 1
-  #       grid[:, HEIGHT - 1:, i_bd] = 1
+        # Add boundary
+        i_bd = self.cookbook.index["boundary"]
+        grid[0, :, i_bd] = 1
+        grid[WIDTH - 1:, :, i_bd] = 1
+        grid[:, 0, i_bd] = 1
+        grid[:, HEIGHT - 1:, i_bd] = 1
         
-  #       # Place agent at (5,5)
-  #       init_pos = (5, 5)
+        # Place agent at (5,5)
+        init_pos = (5, 5)
         
-  #       # Place wood at (5,6) - right next to agent
-  #       wood_index = self.cookbook.index["wood"]
-  #       grid[5, 6, wood_index] = 1
+        # Place wood at (5,6) - right next to agent
+        wood_index = self.cookbook.index["wood"]
+        grid[5, 6, wood_index] = 1
         
-  #       # Place workshop1 at (5,7) - right next to wood
-  #       workshop1_index = self.cookbook.index["workshop1"]
-  #       grid[5, 7, workshop1_index] = 1
+        # Place workshop1 at (5,7) - right next to wood
+        workshop1_index = self.cookbook.index["workshop1"]
+        grid[5, 7, workshop1_index] = 1
         
-  #       return CraftScenario(grid, init_pos, self)
+        return CraftScenario(grid, init_pos, self)
 
   def visualize(self, transitions):
     def _visualize(win):
