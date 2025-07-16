@@ -40,54 +40,55 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 def craft_func(env, item_index):
- 
-    """Craft the specified item by collecting required primitives and using a workshop."""
+ # TODO: Implement this function
+    """Returns a list of actions that we will take to craft the item at the item_index. Crafting an item requires collecting the primitives/items needed and then going to one of the workshops to craft the item."""
     
-    # Define action indices
-    DOWN = 0
-    UP = 1
-    LEFT = 2
-    RIGHT = 3
-    USE = 4
+    # Get the cookbook from the world environment
+    cookbook = env.world.cookbook
     
+    # Find the recipe for the desired item
+    recipe = None
+    for output, inputs in cookbook.recipes.items():
+        if output == item_index:
+            recipe = inputs
+            break
+            
+    if recipe is None:
+        raise ValueError(f"No recipe found for item index {item_index}")
+        
+    # Collect primitives needed for the recipe
     actions = []
+    required_primitives = [i for i in recipe if isinstance(i, int)]
+    required_counts = {primitive: recipe[primitive] for primitive in required_primitives}
     
-    # Get the recipe for the desired item
-    cookbook = env.world.cookbook.recipes
-    recipe = cookbook[item_index]
-    
-    # Collect required primitives
-    required_primitives = {i: quantity for i, quantity in recipe.items() if isinstance(i, int)}
-    
-    # Function to move to a specific location (x, y)
-    def move_to(x, y):
-        current_x, current_y = env._current_state.pos
-        dx, dy = x - current_x, y - current_y
-        actions.extend([RIGHT] * dx if dx > 0 else [LEFT] * abs(dx))
-        actions.extend([DOWN] * dy if dy > 0 else [UP] * abs(dy))
-    
-    # Collect each required primitive
-    for primitive_index, quantity in required_primitives.items():
-        while env._current_state.inventory[primitive_index] < quantity:
-            # Find the nearest location of this primitive
-            locations = np.argwhere(env._current_state.grid[:, :, primitive_index])
-            if not locations.size:
-                raise ValueError(f"No {env.world.cookbook.index.get(primitive_index)} found in the environment.")
+    while not all(env._current_state.inventory[primitive] >= count for primitive, count in required_counts.items()):
+        # Find a nearby primitive and collect it
+        for primitive in required_primitives:
+            if env._current_state.next_to(primitive):
+                actions.append(env.action_specs()['USE'])  # Collect the item
+                break
+        else:
+            # If no primitives are next to us, move randomly (for simplicity)
+            possible_moves = [env.action_specs()[dir] for dir in ['UP', 'DOWN', 'LEFT', 'RIGHT']]
+            action = np.random.choice(possible_moves)
+            actions.append(action)
             
-            closest_location = min(locations, key=lambda loc: np.linalg.norm(np.array(loc) - np.array(env._current_state.pos)))
-            move_to(*closest_location)
-            
-            # Collect the primitive
-            actions.append(USE)
+    # Go to a workshop and craft the item
+    workshops = [i for i, is_workshop in enumerate(cookbook.recipes[output]) if isinstance(is_workshop, str) and "WORKSHOP" in is_workshop]
+    if not workshops:
+        raise ValueError("No workshop found to craft the item")
     
-    # Move to a workshop and craft the item
-    workshop_index = recipe["_at"]
-    workshops = env.world.cookbook.recipes[workshop_index]
-    closest_workshop = min(workshops, key=lambda loc: np.linalg.norm(np.array(loc) - np.array(env._current_state.pos)))
-    move_to(*closest_workshop)
+    # For simplicity, let's assume we can go directly to a workshop (no pathfinding)
+    workshop_index = workshops[0]  # Just pick the first workshop for now
     
-    # Craft the item
-    actions.append(USE)
+    # Move to the workshop
+    while not env._current_state.next_to(workshop_index):
+        possible_moves = [env.action_specs()[dir] for dir in ['UP', 'DOWN', 'LEFT', 'RIGHT']]
+        action = np.random.choice(possible_moves)
+        actions.append(action)
+        
+    # Craft the item at the workshop
+    actions.append(env.action_specs()['USE'])
     
     return actions
 
