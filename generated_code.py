@@ -40,41 +40,37 @@ def evaluate() -> float:
   return solve(env, visualise=visualise)
 
 def craft_func(env, item_index):
-  
-  # Get the primitives/items required to craft the given item
-  task = env.task
-  goal_name, goal_arg = task.goal
-
-  # Get all items needed in the recipe for the goal
-  needed_items = env.world.cookbook.primitives_for(item_index)
-
-  actions = []
-  
-  # Collect the needed items
-  for primitive, count in needed_items.items():
-    while np.sum(env._current_state.inventory[primitive]) < count:
-      if not env._current_state.next_to(primitive):
-        # Move to a workshop where we can find this item
-        workshops_for_item = env.world.cookbook.workshops_for(primitive)
-        for workshop in workshops_for_item:
-          # Check if the current state is next to any of these workshops
-          if env._current_state.next_to(workshop):
-            break
-        else:
-          # If no workshop is adjacent, move to one (for simplicity, we'll assume a workshop is always reachable)
-          actions.extend(move_actions(env, primitive))
-      
-      # Craft the item at the workshop
-      actions.append(env.action_specs()['USE'])
-  
-  # Once all items are collected, craft the goal item
-  if env._current_state.next_to(env.world.cookbook.workshops_for(goal_arg)[0]):
-    actions.append(env.action_specs()['USE'])
-  else:
-    actions.extend(move_actions(env, goal_arg))
+    
+    # Dictionary mapping item indices to their crafting recipes
+    cookbook = env.world.cookbook.recipes
+    
+    # Get the recipe for the desired item
+    recipe = cookbook[item_index]
+    
+    # Initialize a list to hold actions
+    actions = []
+    
+    # Collect all primitives needed for the recipe
+    for primitive, count in recipe.items():
+        if isinstance(primitive, int):  # Ignore "_at" and "_yield"
+            while env._current_state.inventory[primitive] < count:
+                if env._current_state.next_to(primitive):
+                    actions.append(env.action_specs()['USE'])
+                else:
+                    # Move towards the primitive (assuming we have a simple heuristic to find it)
+                    actions.extend(move_towards_primitive(env, primitive))
+    
+    # Go to the workshop where the item can be crafted
+    workshop = recipe["_at"]
+    workshop_index = env.world.cookbook.index[workshop]
+    while not env._current_state.next_to(workshop_index):
+        # Move towards the workshop (assuming we have a simple heuristic to find it)
+        actions.extend(move_towards_workshop(env, workshop_index))
+    
+    # Craft the item at the workshop
     actions.append(env.action_specs()['USE'])
     
-  return actions
+    return actions
 
 
 print(evaluate())
