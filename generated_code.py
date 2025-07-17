@@ -41,64 +41,62 @@ def evaluate() -> float:
 
 def craft_func(env, item_index):
   
-    """Crafts an item by moving to the appropriate workshop after collecting all necessary primitives.
+    """
+    Returns a list of actions that we will take to craft the item at the item_index.
+    Crafting an item requires collecting the primitives/items needed and then going to one of the workshops to craft the item.
 
-    Args:
-        env (CraftLab): The environment in which the agent acts.
-        item_index (int): Index of the item to be crafted.
+    Parameters:
+    - env: CraftLab environment object
+    - item_index: Index of the item to be crafted
 
     Returns:
-        list[int]: List of actions required to craft the item.
+    - List of actions (integers) to craft the item.
     """
-    # Get the current state from the environment
-    current_state = env._current_state
-    
-    # Get the primitives needed for the item
-    cookbook = current_state.world.cookbook
+    # Get the primitives required for the specified item index
+    cookbook = env.world.cookbook
     primitives_needed = cookbook.primitives_for(item_index)
     
-    actions = []
+    action_sequence = []
+    
+    def collect_item(kind):
+        """
+        Collects items of a given kind until we have enough.
+
+        Parameters:
+        - kind: Index of the item kind to be collected
+
+        Returns:
+        - List of actions (integers) to collect the item.
+        """
+        actions = []
+        while primitives_needed[kind] > 0:
+            # Move and collect items
+            for _ in range(5):  # Example: move around and collect in a small area
+                actions.extend([env.action_specs()['LEFT'], env.action_specs()['USE']])
+            primitives_needed[kind] -= 1  # Decrement the count as we assume collection
+        return actions
+    
+    def go_to_workshop():
+        """
+        Moves to one of the workshops.
+
+        Returns:
+        - List of actions (integers) to move to a workshop.
+        """
+        # Example: Move in a specific pattern to reach a workshop
+        actions = [env.action_specs()['UP'], env.action_specs()['UP'],
+                   env.action_specs()['RIGHT'], env.action_specs()['USE']]
+        return actions
     
     # Collect all needed primitives
-    for primitive, count in primitives_needed.items():
-        while np.sum(current_state.inventory[primitive]) < count:
-            # Find a location with the needed primitive
-            locations = np.argwhere(current_state.grid[:, :, primitive] > 0)
-            
-            if len(locations) == 0:
-                print(f"No available {primitive} to collect.")
-                break
-            
-            for loc in locations:
-                x, y = loc
-                agent_x, agent_y = current_state.pos
-                
-                # Move to the location of the primitive
-                if agent_x < x:
-                    actions.append(env.action_specs()['RIGHT'])
-                elif agent_x > x:
-                    actions.append(env.action_specs()['LEFT'])
-                if agent_y < y:
-                    actions.append(env.action_specs()['DOWN'])
-                elif agent_y > y:
-                    actions.append(env.action_specs()['UP'])
-                
-                # Collect the primitive
-                actions.append(env.action_specs()['USE'])
-                
-                # Update the current state after collecting the primitive
-                _, current_state = current_state.step(actions[-1])
+    for kind, count in primitives_needed.items():
+        action_sequence.extend(collect_item(kind))
     
-    # Find a workshop to craft the item
-    workshops = [cookbook.index["WORKSHOP0"], cookbook.index["WORKSHOP1"], cookbook.index["WORKSHOP2"]]
-    for workshop in workshops:
-        if current_state.next_to(workshop):
-            actions.append(env.action_specs()['USE'])
-            break
-    else:
-        print("No available workshop to craft the item.")
+    # Move to a workshop and craft the item
+    action_sequence.extend(go_to_workshop())
+    action_sequence.append(env.action_specs()['USE'])  # Craft the item at the workshop
     
-    return actions
+    return action_sequence
 
 
 print(evaluate())

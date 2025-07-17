@@ -28,7 +28,6 @@ networkx==3.4.2
 numpy==2.2.2+computecanada
 packaging==25.0
 pandas==2.2.3
-pillow==11.2.1
 psutil==7.0.0
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
