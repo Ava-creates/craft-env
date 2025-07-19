@@ -13,5 +13,4 @@
 #replace the venv path here
 source carft/bin/activate
 
-
-python random_sampler_hf.py
+python -m funsearch.implementation.funsearch --model_type huggingface --function craft --spec_file  prompt_specifications>
