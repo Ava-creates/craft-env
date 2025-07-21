@@ -13,4 +13,4 @@
 #replace the venv path here
 source carft/bin/activate
 
-python -m funsearch.implementation.funsearch --model_type huggingface --function craft --spec_file  prompt_specifications>
+python -m funsearch.implementation.funsearch --model_type huggingface --function craft --spec_file  prompt_specifications

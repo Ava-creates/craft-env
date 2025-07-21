@@ -3,7 +3,6 @@ def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
   item = 14 
   total_reward = craft(env, item)
-
   return total_reward 
 
 @funsearch.run
@@ -22,5 +21,5 @@ def evaluate() -> float:
 
 @funsearch.evolve
 def craft(env, item) -> float:
-  """Returns the reward gathered from the env in the process of crafting the item."""
+  """Takes necessary steps in the enviornment to complete the task of crafting the input item and then returns the reward it collects from the enviornment when it takes the necessary steps"""
   return 0.0
