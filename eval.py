@@ -7,24 +7,24 @@ import env_factory
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
   item = 14
-  reward = craft(env, 14)
-#   print("actions", actions_to_take)
-#   observations = env.reset()
-#   total_reward = 0.0
+  action_to_take = craft(env, 14)
 
-#   for t in range(len(actions_to_take)):
-#     action = actions_to_take[t]
-#     reward, done, observations = env.step(action)
-#     print(reward)
-#     total_reward += reward
-#     # print(env._current_state.satisfies(None, 14))
-#     if reward:
-#       rewarding_frame = observations['image'].copy()
-#       rewarding_frame[:40] *= np.array([0, 1, 0])
-#     elif done:
-#       break
+  observations = env.reset()
+  total_reward = 0.0
 
-  return reward
+  for t in range(len(actions_to_take)):
+    action = actions_to_take[t]
+    reward, done, observations = env.step(action)
+    print(reward)
+    total_reward += reward
+    # print(env._current_state.satisfies(None, 14))
+    if reward:
+      rewarding_frame = observations['image'].copy()
+      rewarding_frame[:40] *= np.array([0, 1, 0])
+    elif done:
+      break
+
+  return total_reward
 
 
 def evaluate() -> float:
@@ -38,107 +38,102 @@ def evaluate() -> float:
       visualise=visualise)
 
   env = env_sampler.sample_environment(task_name='make[stick]')
+
   return solve(env, visualise=visualise)
 
 
-def craft(env, item_index) -> float:
-  from collections import deque
-  
-  # Action constants
-  DOWN, UP, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
-  
-  def move_towards(pos, target):
-    """Returns the next action to move from pos to target using greedy policy."""
-    x, y = pos
-    tx, ty = target
-    if tx < x:
-      return LEFT
-    elif tx > x:
-      return RIGHT
-    elif ty < y:
-      return DOWN
-    elif ty > y:
-      return UP
-    return None
+def craft(env, item) -> float:
 
-  def find_positions(kind_index, grid):
-    """Return list of (x, y) where kind_index is located."""
-    positions = []
-    for x in range(grid.shape[0]):
-      for y in range(grid.shape[1]):
-        if grid[x, y, kind_index]:
-          positions.append((x, y))
-    return positions
+    total_reward = 0.0
 
-  def get_current_pos():
-    return env._current_state.pos
+    # Get the index of the item to craft
+    item_idx = env.world.cookbook.index[item]
+    
+    # Check if the item is craftable (i.e., has a recipe)
+    if item_idx not in env.world.cookbook.recipes:
+        return total_reward  # Not craftable, e.g., primitive item like "wood"
 
-  def is_done():
-    return env._is_done()
+    recipe = env.world.cookbook.recipes[item_idx]
+    
+    # Determine if a crafting station is required
+    if "_at" in recipe:
+        station_name = recipe["_at"]
+        station_idx = env.world.cookbook.index[station_name]
 
-  reward = 0.0
-  steps = 0
-  max_steps = env.max_steps
+        # Find the crafting station's location on the grid
+        station_x, station_y = -1, -1
+        for x_grid in range(WIDTH):
+            for y_grid in range(HEIGHT):
+                if env._current_state.grid[x_grid, y_grid, station_idx] == 1:
+                    station_x, station_y = x_grid, y_grid
+                    break
+            if station_x != -1:
+                break
 
-  obs = env.observations()
-  needed = env.world.cookbook.primitives_for(item_index)
-  # Include goal itself to monitor pickup
-  needed[item_index] = 1
+        if station_x == -1:
+            return total_reward  # Station not found
 
-  while not is_done() and steps < max_steps:
-    obs = env.observations()
-    state = env._current_state
-    pos = state.pos
-    grid = obs["features_dict"]["features_global"]
-    inventory = state.inventory.copy()
+        # Define approach points (adjacent tiles + required facing direction)
+        target_approach_points = [
+            (station_x, station_y - 1, UP),
+            (station_x - 1, station_y, RIGHT),
+            (station_x, station_y + 1, DOWN),
+            (station_x + 1, station_y, LEFT)
+        ]
 
-    # Determine what we still need
-    to_get = {item: count for item, count in needed.items() if inventory[item] < count}
-    if not to_get:
-      # Have everything, try crafting at workshop
-      crafted = False
-      for i_ws in env.world.workshop_indices:
-        workshop_positions = find_positions(i_ws, grid)
-        for wp in workshop_positions:
-          if abs(wp[0] - pos[0]) + abs(wp[1] - pos[1]) == 1:
-            reward_step, done, _ = env.step(USE)
-            reward += reward_step
-            steps += 1
-            crafted = True
-            break
-        if crafted:
-          break
-      else:
-        # Move toward nearest workshop
-        target = workshop_positions[0] if workshop_positions else None
-        if target:
-          action = move_towards(pos, target)
-          if action is not None:
-            reward_step, done, _ = env.step(action)
-            reward += reward_step
-            steps += 1
-      continue
+        station_reached_and_oriented = False
+        for target_px, target_py, target_d in target_approach_points:
+            moves_count = 0
+            max_moves_to_reach_pos = 2 * (WIDTH + HEIGHT) + 10
 
-    # Otherwise, go collect needed items
-    for item in to_get:
-      positions = find_positions(item, grid)
-      if not positions:
-        continue
-      target = positions[0]
-      if abs(target[0] - pos[0]) + abs(target[1] - pos[1]) == 1:
-        reward_step, done, _ = env.step(USE)
-        reward += reward_step
-        steps += 1
-      else:
-        action = move_towards(pos, target)
-        if action is not None:
-          reward_step, done, _ = env.step(action)
-          reward += reward_step
-          steps += 1
-      break
+            # Move agent to adjacent tile
+            while env._current_state.pos != (target_px, target_py) and moves_count < max_moves_to_reach_pos:
+                current_x, current_y = env._current_state.pos
+                action_to_take = -1
+                if current_x < target_px:
+                    action_to_take = RIGHT
+                elif current_x > target_px:
+                    action_to_take = LEFT
+                elif current_y < target_py:
+                    action_to_take = UP
+                elif current_y > target_py:
+                    action_to_take = DOWN
 
-  return reward
+                prev_pos = env._current_state.pos
+                reward, done, _ = env.step(action_to_take)
+                total_reward += reward
+                moves_count += 1
+                if done:
+                    return total_reward
+                if env._current_state.pos == prev_pos:
+                    break  # Stuck, try next approach point
 
+            if env._current_state.pos != (target_px, target_py):
+                continue  # Failed to reach this position
 
+            # Orient the agent
+            spins_count = 0
+            max_spins = 4
+            while env._current_state.dir != target_d and spins_count < max_spins:
+                reward, done, _ = env.step(target_d)
+                total_reward += reward
+                spins_count += 1
+                if done:
+                    return total_reward
+
+            if env._current_state.dir == target_d:
+                station_reached_and_oriented = True
+                break  # Found suitable approach point
+
+        if not station_reached_and_oriented:
+            return total_reward  # Failed to position and orient
+
+    # Perform the USE action
+    reward, done, _ = env.step(USE)
+    total_reward += reward
+    if done:
+        return total_reward
+
+    return total_reward
 
 print(evaluate()) 

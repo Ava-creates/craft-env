@@ -318,21 +318,26 @@ task ::= move | craft | ifhas do
 move ::= MOVE_FUNC LPAR dir RPAR
 dir ::= UP | DOWN | LEFT | RIGHT
 craft ::= CRAFT_FUNC LPAR item RPAR
-collect ::= COLLECT_FUNC LPAR kind RPAR
+collect ::= COLLECT_FUNC LPAR primitive RPAR
 item ::= PLANK | STICK | CLOTH | ROPE | BRIDGE | BUNDLE | HAMMER | KNIFE | BED | AXE | SHEARS | LADDER | SLINGSHOT | ARROW | BOW | BENCH | FLAG | GOLDARROW
 ifhas ::= if HAS LPAR item RPAR
-kind ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
+primitive ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
 do ::= then task
 """
 
+When coming up with the code understand that processing of the action list returned by the function will be handeled on the DSL interpreter using something like below ->
 
+  actions_to_take = collect(env, primitive)
+  for t in range(len(actions_to_take)):
+    action = actions_to_take[t]
+    reward, done, observations = env.step(action)
+    total_reward += reward
+    if done:
+      break
 
-## Function to implement 
-Here are some relevant code for the implementation for the `CRAFT_FUNC` function. You need to generate an implementation of the `CRAFT_FUNC` function using the CraftLab class provided above.
-Output the improved version of the craft function. Make sure the implementation is complete and do not contain any task-specific code.  
 '''
 
 import numpy as np
 import time
-
+import collections
 import env_factory

@@ -20,6 +20,7 @@ class EnvironmentFactory(object):
   def __init__(self,
                recipes_path,
                hints_path,
+               env_type,
                max_steps=100,
                seed=0,
                visualise=False,
@@ -36,7 +37,7 @@ class EnvironmentFactory(object):
       self._env_cache = {}
 
     # create World
-    self.world = craft.CraftWorld(recipes_path, seed)
+    self.world = craft.CraftWorld(recipes_path, env_type, seed)
 
     # Load the tasks with sub-steps (== hints)
     with open(hints_path) as hints_f:
