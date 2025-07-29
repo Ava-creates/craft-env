@@ -339,7 +339,7 @@ When coming up with the code understand that processing of the action list retur
 
 import numpy as np
 import time
-import collections
+
 import env_factory
 
 def solve(env, primitive, visualise=False) -> float:
@@ -403,91 +403,54 @@ def evaluate() -> float:
 
 def collect(env, primitive) -> list[int]:
   """Returns a list of actions to find and collect the primitve passed int he function in the passed env. """
-  current_state = env._current_state
-  grid = current_state.grid
-  initial_pos = current_state.pos
-  grid_height, grid_width, n_kinds = grid.shape
-
-  # Get the integer ID for the primitive (e.g., "WOOD" -> "wood")
-  primitive_id = env.world.cookbook.index[primitive.lower()]
-
-  # Get action mappings from the environment
-  ACTION_MAP = env.action_specs()
-
-  # Define movement deltas corresponding to action IDs
-  # This mapping needs to align with the action IDs provided by env.action_specs()
-  DELTAS = {
-      ACTION_MAP["UP"]: (-1, 0),
-      ACTION_MAP["DOWN"]: (1, 0),
-      ACTION_MAP["LEFT"]: (0, -1),
-      ACTION_MAP["RIGHT"]: (0, 1),
-  }
+  # Get the index for the given primitive
+  primitive_index = env.world.cookbook.index[primitive]
   
-  # Identify non-walkable indices for BFS pathfinding
-  # Based on the environment description, 'boundary' and 'water' are common obstacles.
-  unwalkable_indices = set()
-  try:
-      unwalkable_indices.add(env.world.cookbook.index["boundary"])
-  except KeyError:
-      pass # 'boundary' might not exist in all cookbooks/environments
-  try:
-      unwalkable_indices.add(env.world.cookbook.index["water"])
-  except KeyError:
-      pass # 'water' might not exist in all cookbooks/environments
-
-
-  # BFS setup
-  queue = collections.deque([(initial_pos, [])]) # (current_position_tuple, list_of_actions_taken)
-  visited = {initial_pos} # Set to keep track of visited positions to avoid cycles and redundant paths
-
-  # Helper function to check if a position is valid (within grid bounds) and walkable
-  def is_valid_and_walkable(r, c):
-      # Check grid boundaries
-      if not (0 <= r < grid_height and 0 <= c < grid_width):
-          return False
+  # Check if the primitive is in the grabbable indices set
+  if primitive_index not in env.world.grabbable_indices:
+    raise ValueError(f"{primitive} cannot be picked up.")
+  
+  actions = []
+  current_state = env._current_state
+  
+  # Loop until we collect at least one of the desired primitive
+  while current_state.inventory[primitive_index] == 0:
+    # Find the position of the primitive in the grid
+    positions = np.argwhere(current_state.grid[:, :, primitive_index] > 0)
+    
+    if len(positions) == 0:
+      print(f"No {primitive} found, moving to a new location.")
+      # Randomly move around to find the primitive
+      actions.extend([np.random.choice([0, 1, 2, 3]) for _ in range(5)])
+    else:
+      # Get the closest position of the primitive
+      pos = positions[0]
+      dx = pos[1] - current_state.pos[1]
+      dy = pos[0] - current_state.pos[0]
       
-      # Check if the cell contains any unwalkable entity
-      for unwalkable_idx in unwalkable_indices:
-          # If the unwalkable item is present at this cell (count > 0)
-          if grid[r, c, unwalkable_idx] > 0: 
-              return False
-      return True
-
-  # Helper function to check if a position is "next_to" the target primitive
-  # This mimics the CraftState.next_to method, checking the 3x3 neighborhood
-  def check_next_to_primitive(r, c, target_id):
-      for dr_offset in [-1, 0, 1]:
-          for dc_offset in [-1, 0, 1]:
-              neighbor_r, neighbor_c = r + dr_offset, c + dc_offset
-              # Ensure neighbor is within grid bounds
-              if 0 <= neighbor_r < grid_height and 0 <= neighbor_c < grid_width:
-                  # Check if the primitive is present in the neighbor cell
-                  if grid[neighbor_r, neighbor_c, target_id] > 0:
-                      return True
-      return False
-
-  # Perform BFS
-  while queue:
-      (r, c), path = queue.popleft()
-
-      # Check if the current position is adjacent to (or on) the target primitive
-      if check_next_to_primitive(r, c, primitive_id):
-          # If so, we've found a path to get adjacent. The next action is 'USE'.
-          return path + [ACTION_MAP["USE"]]
-
-      # Explore all possible movement actions from the current position
-      for action_id, (dr, dc) in DELTAS.items():
-          next_r, next_c = r + dr, c + dc
-          next_pos = (next_r, next_c)
-
-          # If the next position is valid, walkable, and hasn't been visited yet
-          if is_valid_and_walkable(next_r, next_c) and next_pos not in visited:
-              visited.add(next_pos) # Mark as visited
-              # Add to queue with the updated path
-              queue.append((next_pos, path + [action_id]))
-
-  # If the queue becomes empty and no path to the primitive was found, return an empty list
-  return []
+      # Move to the position of the primitive
+      if dx > 0:
+        actions.extend([2] * abs(dx))  # LEFT
+      elif dx < 0:
+        actions.extend([3] * abs(dx))  # RIGHT
+      
+      if dy > 0:
+        actions.extend([1] * abs(dy))  # UP
+      elif dy < 0:
+        actions.extend([0] * abs(dy))  # DOWN
+      
+      # Collect the primitive
+      actions.append(4)  # USE
+      
+    # Update the current state
+    for action in actions:
+      _, done, _ = env.step(action)
+      if done:
+        break
+    
+    current_state = env._current_state
+  
+  return actions
 
  
 print(evaluate())
