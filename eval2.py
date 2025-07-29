@@ -1,3 +1,7 @@
+import numpy as np
+import time
+
+import env_factory
 def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
   #primitive = "wood"
@@ -15,7 +19,6 @@ def solve(env, primitive, visualise=False) -> float:
 
   return total_reward
 
-@funsearch.run
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
   visualise = False
@@ -52,9 +55,13 @@ def evaluate() -> float:
       env = env_sampler.sample_environment(task_name= 'make[axe]')
         
       reward += solve(env, primitive, visualise=visualise)
+
   return reward
 
-@funsearch.evolve
+# @funsearch.evolve
 def collect(env, primitive) -> list[int]:
   """Returns a list of actions to find and collect the primitve passed int he function in the passed env. """
-  return []
+  return [1,4]
+
+
+print(evaluate())
