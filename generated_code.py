@@ -339,7 +339,7 @@ When coming up with the code understand that processing of the action list retur
 
 import numpy as np
 import time
-
+import collections
 import env_factory
 
 def solve(env, primitive, visualise=False) -> float:
@@ -353,10 +353,7 @@ def solve(env, primitive, visualise=False) -> float:
     action = actions_to_take[t]
     reward, done, observations = env.step(action)
     total_reward += reward
-    if reward:
-      rewarding_frame = observations['image'].copy()
-      rewarding_frame[:40] *= np.array([0, 1, 0])
-    elif done:
+    if done:
       break
 
   return total_reward
@@ -403,54 +400,132 @@ def evaluate() -> float:
 
 def collect(env, primitive) -> list[int]:
   """Returns a list of actions to find and collect the primitve passed int he function in the passed env. """
-  # Get the index for the given primitive
-  primitive_index = env.world.cookbook.index[primitive]
-  
-  # Check if the primitive is in the grabbable indices set
-  if primitive_index not in env.world.grabbable_indices:
-    raise ValueError(f"{primitive} cannot be picked up.")
-  
-  actions = []
+  import collections
+  import numpy as np
+
+  # Get the integer ID for the primitive string from the cookbook's index.
+  # The `index` method will create the index if it doesn't exist, but for "primitives"
+  # in this context, they are expected to be known entities.
+  primitive_idx = env.world.cookbook.index.index(primitive)
+
+  # Get current state information from the environment's internal state.
   current_state = env._current_state
-  
-  # Loop until we collect at least one of the desired primitive
-  while current_state.inventory[primitive_index] == 0:
-    # Find the position of the primitive in the grid
-    positions = np.argwhere(current_state.grid[:, :, primitive_index] > 0)
-    
-    if len(positions) == 0:
-      print(f"No {primitive} found, moving to a new location.")
-      # Randomly move around to find the primitive
-      actions.extend([np.random.choice([0, 1, 2, 3]) for _ in range(5)])
-    else:
-      # Get the closest position of the primitive
-      pos = positions[0]
-      dx = pos[1] - current_state.pos[1]
-      dy = pos[0] - current_state.pos[0]
+  start_pos = current_state.pos # Agent's current (row, col) position
+  start_dir = current_state.dir # Agent's current direction (0:North, 1:East, 2:South, 3:West)
+  grid = current_state.grid     # The current grid layout for pathfinding
+  grid_height, grid_width, _ = grid.shape # Grid dimensions: (rows, columns, kinds)
+
+  # Define action mappings for movements and USE based on the environment's action specifications.
+  ACTION_MAP = {
+      'UP': env.action_specs()['UP'],
+      'DOWN': env.action_specs()['DOWN'],
+      'LEFT': env.action_specs()['LEFT'],
+      'RIGHT': env.action_specs()['RIGHT'],
+      'USE': env.action_specs()['USE']
+  }
+
+  # Map (delta_row, delta_col) for a move action to (action_id, new_agent_direction_int).
+  # When an agent moves, its direction is updated to face the direction of movement.
+  # (dr, dc) represents the change in (row, column) coordinates.
+  # Dictionary format: (delta_row, delta_col): (action_to_take_id, resulting_direction_int)
+  MOVE_ACTIONS_INFO = {
+      (0, -1): (ACTION_MAP['UP'], 0),    # Move North: row stays, col decreases. New dir: North (0)
+      (0, 1): (ACTION_MAP['DOWN'], 2),   # Move South: row stays, col increases. New dir: South (2)
+      (-1, 0): (ACTION_MAP['LEFT'], 3),  # Move West: row decreases, col stays. New dir: West (3)
+      (1, 0): (ACTION_MAP['RIGHT'], 1),  # Move East: row increases, col stays. New dir: East (1)
+  }
+
+  # Map agent direction integer to (delta_row, delta_col) for the cell directly in front of the agent.
+  # This is crucial for 'ADJACENT_AND_FACE' interaction type, to check if the primitive is in sight.
+  # Dictionary format: direction_int: (dr_relative_to_agent_pos, dc_relative_to_agent_pos)
+  RELATIVE_DIR_TO_FACING_CELL_DELTA = {
+      0: (0, -1), # North: If agent at (r,c) facing North, cell in front is (r, c-1).
+      1: (1, 0),  # East: If agent at (r,c) facing East, cell in front is (r+1, c).
+      2: (0, 1),  # South: If agent at (r,c) facing South, cell in front is (r, c+1).
+      3: (-1, 0)  # West: If agent at (r,c) facing West, cell in front is (r-1, c).
+  }
+
+  # Determine the interaction type required for the primitive.
+  # This dictates how the agent needs to be positioned relative to the primitive to "collect" it.
+  target_is_grabbable = primitive_idx in env.world.grabbable_indices
+  target_is_workshop = primitive_idx in env.world.workshop_indices
+
+  interaction_type = None
+  if target_is_grabbable:
+      # Examples: WOOD, IRON. Agent typically needs to be adjacent and facing it to USE.
+      interaction_type = "ADJACENT_AND_FACE"
+  elif target_is_workshop:
+      # Examples: WORKSHOP0, WORKSHOP1. Agent needs to be on the same square to USE.
+      interaction_type = "ON_SQUARE"
+  else:
+      # This covers other "primitives" like BOUNDARY, WATER, STONE (if not explicitly grabbable/workshop).
+      # Assumes 'collect' implies reaching the square and performing a 'USE' action there.
+      interaction_type = "ON_SQUARE"
+
+  # Breadth-First Search (BFS) Initialization
+  # The queue stores tuples: (current_position (r,c), current_direction, path_of_actions_to_reach_this_state).
+  q = collections.deque([((start_pos[0], start_pos[1]), start_dir, [])])
+  # The visited set stores (position_r, position_c, direction) tuples to avoid redundant exploration.
+  # Visiting the same grid position from a different agent direction can be a distinct and valid state.
+  visited = {(start_pos[0], start_pos[1], start_dir)}
+
+  while q:
+      (r, c), current_dir, path = q.popleft()
+
+      # --- Check if the current agent state (position, direction) satisfies the goal condition ---
+      # This check is performed immediately upon popping a state, as it might be the target.
       
-      # Move to the position of the primitive
-      if dx > 0:
-        actions.extend([2] * abs(dx))  # LEFT
-      elif dx < 0:
-        actions.extend([3] * abs(dx))  # RIGHT
+      # Condition for ON_SQUARE interaction: agent is on the target square.
+      if interaction_type == "ON_SQUARE":
+          if grid[r, c, primitive_idx] > 0:
+              # If the current cell contains the primitive, a 'USE' action completes the collection.
+              return path + [ACTION_MAP['USE']]
+      # Condition for ADJACENT_AND_FACE interaction: agent is adjacent to and facing the target.
+      elif interaction_type == "ADJACENT_AND_FACE":
+          dr_facing, dc_facing = RELATIVE_DIR_TO_FACING_CELL_DELTA[current_dir]
+          target_nr, target_nc = r + dr_facing, c + dc_facing
+          
+          # Ensure the cell the agent is facing is within grid boundaries.
+          if 0 <= target_nr < grid_height and 0 <= target_nc < grid_width:
+              if grid[target_nr, target_nc, primitive_idx] > 0:
+                  # If the cell in front contains the primitive, a 'USE' action completes the collection.
+                  return path + [ACTION_MAP['USE']]
       
-      if dy > 0:
-        actions.extend([1] * abs(dy))  # UP
-      elif dy < 0:
-        actions.extend([0] * abs(dy))  # DOWN
-      
-      # Collect the primitive
-      actions.append(4)  # USE
-      
-    # Update the current state
-    for action in actions:
-      _, done, _ = env.step(action)
-      if done:
-        break
-    
-    current_state = env._current_state
-  
-  return actions
+      # --- Explore neighbor states by simulating potential move actions ---
+      for (dr_move, dc_move), (action_val, new_dir) in MOVE_ACTIONS_INFO.items():
+          nr, nc = r + dr_move, c + dc_move # Calculate new potential position after taking a move action
+
+          # Check if the new position is within the grid boundaries.
+          if not (0 <= nr < grid_height and 0 <= nc < grid_width):
+              continue
+
+          # Check for traversability of the new cell:
+          # A cell is considered traversable if it does not contain any "non-grabbable"
+          # entity (which are typically obstacles), *unless* that specific non-grabbable
+          # entity IS our target primitive (e.g., a workshop, which you can move onto).
+          is_traversable = True
+          for k_idx in env.world.non_grabbable_indices:
+              # If the neighbor cell (nr, nc) contains an obstacle (a non-grabbable entity)
+              # AND that obstacle is NOT the primitive we are currently trying to collect.
+              if grid[nr, nc, k_idx] > 0 and k_idx != primitive_idx:
+                  is_traversable = False
+                  break
+          if not is_traversable:
+              continue
+          
+          # Check if this new state (position, new_direction) has already been visited
+          # to prevent cycles and redundant path exploration.
+          if (nr, nc, new_dir) in visited:
+              continue
+
+          # If the state is valid and has not been visited, add it to the queue
+          # and mark it as visited for future reference.
+          visited.add((nr, nc, new_dir))
+          q.append(((nr, nc), new_dir, path + [action_val]))
+
+  # If the BFS completes and the primitive was not found on the grid or a path to it
+  # could not be determined, return an empty list of actions.
+  return []
 
  
 print(evaluate())

@@ -1,8 +1,7 @@
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
-  item = 14
-  actions_to_take = craft(env, 14)
-
+  item = 22 
+  actions_to_take = craft(env, item)
   observations = env.reset()
   total_reward = 0.0
 
@@ -10,46 +9,25 @@ def solve(env, visualise=False) -> float:
     action = actions_to_take[t]
     reward, done, observations = env.step(action)
     total_reward += reward
-    # print(env._current_state.satisfies(None, 14))
-    if reward:
-      rewarding_frame = observations['image'].copy()
-      rewarding_frame[:40] *= np.array([0, 1, 0])
-    elif done:
+    if done:
       break
 
-  return total_reward
+  return total_reward 
 
 @funsearch.run
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
-  visualise = False
+  visualise = True
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"
-  reward = 0 
-  for env_type in range(3):
-    env_sampler = env_factory.EnvironmentFactory(
-        recipes_path, hints_path, env_type, max_steps=100, reuse_environments=False,
-        visualise=visualise)
-    task = ""
-    env = ""
-    if env_type == 0:
-      task = 'make[stick]'
-      env = env_sampler.sample_environment(task_name= task)
-      env.step(1)
-      env.step(4)
-    elif env_type == 1:
-      task = 'make[bridge]'
-      env.step(1)
-      env.step(4)
-      env.step(1)
-      env.step(4)
-      env = env_sampler.sample_environment(task_name= task)
-    else:
-      task = 'make[axe]'
-      env = env_sampler.sample_environment(task_name= task)
-    
-    reward += solve(env, visualise=visualise)
-  return reward
+
+  env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 2, max_steps=200, reuse_environments=False,
+      visualise=visualise)
+
+  env = env_sampler.sample_environment(task_name='make[axe]')
+  return solve(env, visualise=visualise)
+
 
 @funsearch.evolve
 def craft(env, item) -> list[int]:
