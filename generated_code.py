@@ -400,94 +400,121 @@ def evaluate() -> float:
 
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-  import collections
+  from collections import deque
   import numpy as np
 
-  # Get the mapping of action names to their integer values.
-  action_specs = env.action_specs()
-  # Extract the integer values for all possible actions.
-  # This version iterates directly over the values view, which is efficient.
-  ACTION_VALUES = action_specs.values()
+  # Helper function for hashing state. This creates a unique, hashable representation
+  # of the CraftState by combining its key components (grid, inventory, position, direction).
+  # Numpy arrays are converted to bytes for hashing as they are mutable and not directly hashable.
+  def _hash_state(state):
+      """
+      Creates a hashable representation of the CraftState for the visited set.
+      Includes grid, inventory, position, and direction.
+      """
+      grid_bytes = state.grid.tobytes()
+      inventory_bytes = state.inventory.tobytes()
+      return (grid_bytes, inventory_bytes, state.pos, state.dir)
 
-  # Reset the environment to its initial state.
-  # This ensures the search starts from a clean and known configuration.
-  # The `_` is used as a placeholder for the returned observation dictionary,
-  # which we don't directly need here, but the call updates `env._current_state`.
-  _ = env.reset()
+  # Get the initial state from the environment. This ensures the planning starts
+  # from the current state of the CraftLab environment, allowing it to solve
+  # tasks from any arbitrary in-progress state, not just a freshly reset one.
   initial_craft_state = env._current_state
+  initial_state_hash = _hash_state(initial_craft_state)
 
-  # Initialize a queue for Breadth-First Search (BFS).
-  # Each element in the queue is a tuple:
-  # (current_CraftState_object, list_of_actions_to_reach_this_state).
-  queue = collections.deque([(initial_craft_state, [])])
+  # Early exit: If the target item is already present in the initial inventory,
+  # no actions are needed, and an empty list of actions is returned.
+  if initial_craft_state.satisfies(None, item):
+      return []
 
-  # Initialize a set to keep track of visited states.
-  # This prevents infinite loops and redundant computation, ensuring the shortest path is found.
-  # A state is represented as a hashable tuple:
-  # (grid_as_bytes, inventory_as_bytes, agent_position_tuple, agent_direction_integer).
-  visited = set()
+  # Initialize the Breadth-First Search (BFS) queue.
+  # Each element is a tuple: (current_CraftState_object, current_path_length).
+  # The path length is used for pruning against `max_steps`.
+  queue = deque()
+  queue.append((initial_craft_state, 0)) # Start with the initial state and a path length of 0.
 
-  # Add the initial state to the visited set.
-  initial_grid_bytes = initial_craft_state.grid.tobytes()
-  initial_inventory_bytes = initial_craft_state.inventory.tobytes()
-  initial_hashable_state = (initial_grid_bytes, initial_inventory_bytes,
-                            initial_craft_state.pos, initial_craft_state.dir)
-  visited.add(initial_hashable_state)
+  # `parent_map` is crucial for reconstructing the path efficiently.
+  # Key: hash of the current state.
+  # Value: (hash of the parent state, action taken from parent to reach current state).
+  # This avoids the memory overhead of storing full action lists in the queue,
+  # which was a potential inefficiency in `craft_v1`.
+  parent_map = {initial_state_hash: (None, None)} # The initial state has no parent.
 
-  # Define the maximum search depth based on the environment's max_steps.
-  # This aligns the planning horizon with the environment's episode length,
-  # preventing paths that are too long to be executed.
-  MAX_SEARCH_DEPTH = env.max_steps
+  # `visited_hashes` is a set to keep track of all unique state hashes encountered so far.
+  # This prevents redundant exploration of already visited states and avoids infinite loops in cycles.
+  visited_hashes = {initial_state_hash}
 
-  # Start the BFS loop
+  # Retrieve the maximum number of steps allowed for an episode from the environment.
+  # This acts as an upper bound for the length of any path found by BFS.
+  # A default value (e.g., 500) is used if `max_steps` is not explicitly set in the environment.
+  max_path_length = getattr(env, 'max_steps', 500)
+
+  # Define all possible actions as integer IDs. These correspond to the actions
+  # defined in the `CraftLab` action_specs (e.g., DOWN=0, UP=1, LEFT=2, RIGHT=3, USE=4).
+  ALL_ACTIONS = [0, 1, 2, 3, 4]
+
+  goal_found_state_hash = None # This will store the hash of the state where the goal was achieved.
+
+  # BFS main loop: continues as long as there are states to explore in the queue.
   while queue:
-    current_state, actions_taken = queue.popleft()
+      current_state, current_path_length = queue.popleft()
 
-    # Check if the current state satisfies the goal (i.e., the item is in the inventory).
-    # CraftState.satisfies expects a goal_name (ignored here) and goal_arg (the item index).
-    if current_state.satisfies(None, item):
-      return actions_taken
-
-    # If the current path has reached or exceeded the maximum allowed depth, prune it.
-    # We prune *before* exploring actions from this state to prevent overly long paths.
-    if len(actions_taken) >= MAX_SEARCH_DEPTH:
-      continue
-
-    # Generate a hashable representation of the current state for comparison with next states.
-    # This is done here to enable the "no-op" optimization below.
-    current_grid_bytes = current_state.grid.tobytes()
-    current_inventory_bytes = current_state.inventory.tobytes()
-    current_hashable_state = (current_grid_bytes, current_inventory_bytes,
-                              current_state.pos, current_state.dir)
-
-    # Explore all possible actions from the current state.
-    for action_value in ACTION_VALUES:
-      # Simulate the action. CraftState.step returns a new CraftState object.
-      # The reward is not used for pathfinding in this context.
-      _, next_state = current_state.step(action_value)
-
-      # Create a hashable representation of the next state.
-      next_grid_bytes = next_state.grid.tobytes()
-      next_inventory_bytes = next_state.inventory.tobytes()
-      next_hashable_state = (next_grid_bytes, next_inventory_bytes,
-                             next_state.pos, next_state.dir)
-
-      # Optimization: If the action results in no state change, skip it.
-      # This prevents adding redundant entries to the queue and visited set
-      # for actions that are effectively "no-ops" in the current context (e.g.,
-      # moving into a wall, or using an item when nothing is nearby).
-      if next_hashable_state == current_hashable_state:
+      # Pruning: If the current path length already equals or exceeds the maximum allowed steps,
+      # further exploration from this state will exceed the episode limit.
+      # A path of exactly `max_path_length` actions is considered valid, but no more actions can be taken from it.
+      if current_path_length >= max_path_length:
           continue
 
-      # If this next state has not been visited before, add it to the visited set
-      # and enqueue it for further exploration.
-      if next_hashable_state not in visited:
-        visited.add(next_hashable_state)
-        queue.append((next_state, actions_taken + [action_value]))
+      # Explore each possible action from the current state.
+      for action in ALL_ACTIONS:
+          # Apply the action to get the next state.
+          # CraftState.step returns (reward, new_CraftState_object). We only need the new state.
+          _, new_state = current_state.step(action)
+          new_state_hash = _hash_state(new_state)
+          new_path_length = current_path_length + 1
 
-  # If the queue becomes empty and the goal was never reached,
-  # it means the item cannot be crafted or reached within the defined search limits.
-  return []
+          # Pruning: If taking this action results in a path length greater than the maximum allowed,
+          # this particular sequence of actions is invalid, so we skip it.
+          if new_path_length > max_path_length:
+              continue
+
+          # If this new state has not been visited before, process it.
+          if new_state_hash not in visited_hashes:
+              visited_hashes.add(new_state_hash)
+              # Store the parent state and the action taken to reach this new state in the `parent_map`.
+              parent_map[new_state_hash] = (_hash_state(current_state), action)
+
+              # Check if the goal (having the 'item' in inventory) is satisfied in the new state.
+              if new_state.satisfies(None, item):
+                  goal_found_state_hash = new_state_hash
+                  break # Goal found! Exit the inner loop (actions exploration for current state).
+              else:
+                  # If the goal is not satisfied, add the new state to the queue for further exploration.
+                  queue.append((new_state, new_path_length))
+      
+      # If the goal was found in the inner loop, break the outer loop (BFS) as well,
+      # as the shortest path has been found.
+      if goal_found_state_hash is not None:
+          break
+
+  # If `goal_found_state_hash` is still None after the BFS completes, it means
+  # the target item cannot be crafted (or found) from the initial state within
+  # the specified `max_path_length`. In this case, an empty list of actions is returned.
+  if goal_found_state_hash is None:
+      return []
+
+  # Reconstruct the path by backtracking from the `goal_found_state_hash` using the `parent_map`.
+  path = []
+  current_hash = goal_found_state_hash
+  # Backtrack until we reach the initial state (which is the root of our parent tracking).
+  while current_hash != initial_state_hash:
+      parent_hash, action = parent_map[current_hash]
+      path.append(action)
+      current_hash = parent_hash
+  
+  # The path is constructed in reverse order (from goal to start), so reverse it
+  # to get the correct sequence of actions from the start state to the goal state.
+  path.reverse()
+  return path
 
  
 print(evaluate())
