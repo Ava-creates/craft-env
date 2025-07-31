@@ -6,9 +6,8 @@ import env_factory
 
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
-  item = 14
-  action_to_take = craft(env, 14)
-
+  actions_to_take = craft(env, 30)
+  print(actions_to_take)
   observations = env.reset()
   total_reward = 0.0
 
@@ -34,106 +33,80 @@ def evaluate() -> float:
   hints_path = "resources/hints.yaml"
 
   env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, max_steps=100, reuse_environments=False,
+      recipes_path, hints_path,2, max_steps=100, reuse_environments=False,
       visualise=visualise)
 
-  env = env_sampler.sample_environment(task_name='make[stick]')
+  env = env_sampler.sample_environment(task_name='make[goldarrow]')
 
   return solve(env, visualise=visualise)
 
 
 def craft(env, item) -> float:
 
-    total_reward = 0.0
+  import collections
 
-    # Get the index of the item to craft
-    item_idx = env.world.cookbook.index[item]
-    
-    # Check if the item is craftable (i.e., has a recipe)
-    if item_idx not in env.world.cookbook.recipes:
-        return total_reward  # Not craftable, e.g., primitive item like "wood"
+  # Action constants (from action_specs)
+  # Placed inside the function to adhere to the strict requirement of
+  # returning only code that fits within the function.
+  DOWN = 0
+  UP = 1
+  LEFT = 2
+  RIGHT = 3
+  USE = 4
+  ACTIONS = [DOWN, UP, LEFT, RIGHT, USE]
 
-    recipe = env.world.cookbook.recipes[item_idx]
-    
-    # Determine if a crafting station is required
-    if "_at" in recipe:
-        station_name = recipe["_at"]
-        station_idx = env.world.cookbook.index[station_name]
+  # Reset the environment to a consistent starting state.
+  # This populates `env._current_state` with the initial `CraftState`.
+  env.reset(seed=0)
+  initial_craft_state = env._current_state
 
-        # Find the crafting station's location on the grid
-        station_x, station_y = -1, -1
-        for x_grid in range(WIDTH):
-            for y_grid in range(HEIGHT):
-                if env._current_state.grid[x_grid, y_grid, station_idx] == 1:
-                    station_x, station_y = x_grid, y_grid
-                    break
-            if station_x != -1:
-                break
+  # Queue for Breadth-First Search (BFS).
+  # Each element is a tuple: (current_CraftState, list_of_actions_to_reach_this_state).
+  queue = collections.deque([(initial_craft_state, [])])
 
-        if station_x == -1:
-            return total_reward  # Station not found
+  # Set to store visited states to avoid redundant computations and cycles.
+  # A state is uniquely identified by its grid layout, inventory, agent position, and direction.
+  # `grid.tobytes()` is used for efficient hashing of the numpy grid array.
+  # Inventory (numpy array) and position (tuple) are converted to tuples for hashing.
+  visited = set()
 
-        # Define approach points (adjacent tiles + required facing direction)
-        target_approach_points = [
-            (station_x, station_y - 1, UP),
-            (station_x - 1, station_y, RIGHT),
-            (station_x, station_y + 1, DOWN),
-            (station_x + 1, station_y, LEFT)
-        ]
+  # Maximum depth to search. This limits the number of actions in a potential solution path.
+  # It prevents excessively long runtimes for complex or potentially unsolvable goals.
+  # This value might need tuning depending on the typical complexity of crafting tasks.
+  max_search_depth = 75
 
-        station_reached_and_oriented = False
-        for target_px, target_py, target_d in target_approach_points:
-            moves_count = 0
-            max_moves_to_reach_pos = 2 * (WIDTH + HEIGHT) + 10
+  while queue:
+    current_state, actions_so_far = queue.popleft()
 
-            # Move agent to adjacent tile
-            while env._current_state.pos != (target_px, target_py) and moves_count < max_moves_to_reach_pos:
-                current_x, current_y = env._current_state.pos
-                action_to_take = -1
-                if current_x < target_px:
-                    action_to_take = RIGHT
-                elif current_x > target_px:
-                    action_to_take = LEFT
-                elif current_y < target_py:
-                    action_to_take = UP
-                elif current_y > target_py:
-                    action_to_take = DOWN
+    # Check if the goal item is present in the current state's inventory.
+    if current_state.satisfies(None, item):
+      return actions_so_far
 
-                prev_pos = env._current_state.pos
-                reward, done, _ = env.step(action_to_take)
-                total_reward += reward
-                moves_count += 1
-                if done:
-                    return total_reward
-                if env._current_state.pos == prev_pos:
-                    break  # Stuck, try next approach point
+    # If the current path length exceeds the maximum allowed search depth,
+    # prune this branch to limit computational cost.
+    if len(actions_so_far) >= max_search_depth:
+      continue
 
-            if env._current_state.pos != (target_px, target_py):
-                continue  # Failed to reach this position
+    # Create a hashable representation of the current state.
+    state_key = (current_state.grid.tobytes(), tuple(current_state.inventory),
+                 current_state.pos, current_state.dir)
 
-            # Orient the agent
-            spins_count = 0
-            max_spins = 4
-            while env._current_state.dir != target_d and spins_count < max_spins:
-                reward, done, _ = env.step(target_d)
-                total_reward += reward
-                spins_count += 1
-                if done:
-                    return total_reward
+    # If this state has already been visited, skip it.
+    # BFS inherently finds the shortest path, so if we've seen this state,
+    # we've either seen it via a shorter path, or we're exploring a cycle.
+    if state_key in visited:
+      continue
+    visited.add(state_key)
 
-            if env._current_state.dir == target_d:
-                station_reached_and_oriented = True
-                break  # Found suitable approach point
+    # Explore all possible actions from the current state.
+    for action in ACTIONS:
+      # `current_state.step(action)` returns a new `CraftState` instance,
+      # which is essential for BFS to explore distinct states without modifying previous ones.
+      reward, next_state = current_state.step(action)
+      queue.append((next_state, actions_so_far + [action]))
 
-        if not station_reached_and_oriented:
-            return total_reward  # Failed to position and orient
-
-    # Perform the USE action
-    reward, done, _ = env.step(USE)
-    total_reward += reward
-    if done:
-        return total_reward
-
-    return total_reward
+  # If the queue becomes empty and the goal was not found, it means the item
+  # cannot be crafted within the specified search depth or is fundamentally impossible.
+  return []
 
 print(evaluate()) 

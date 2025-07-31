@@ -55,6 +55,14 @@ def evaluate() -> float:
   return reward
 
 @funsearch.evolve
-def collect(env, primitive) -> list[int]:
-  """Returns a list of actions to find and collect the primitve passed int he function in the passed env. """
+def collect(env: CraftLab, primitive: str) -> list[int]:
+  """Returns a list of actions to find and collect the primitive in the passed env.
+    
+    Args:
+        env (CraftLab): The CraftLab object.
+        primitive (str): The name of the primitive to collect.
+
+    Returns:
+        List[int]: A sequence of action indices to execute.
+  """  
   return []
