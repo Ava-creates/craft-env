@@ -367,10 +367,10 @@ import time
 import env_factory
 
 
-def solve(env, visualise=False) -> float:
-  """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
-  item = 22 
-  actions_to_take = craft(env, item)
+def solve(env, primitive, visualise=False) -> float:
+  """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
+  actions_to_take = collect(env, primitive)
+
   observations = env.reset()
   total_reward = 0.0
 
@@ -381,140 +381,171 @@ def solve(env, visualise=False) -> float:
     if done:
       break
 
-  return total_reward 
+  return total_reward
 
 
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
-  visualise = True
+  visualise = False
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"
+  reward = 0 
+  for i in range(3):
+    if(i == 0):
+      primitive = "wood"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+            visualise=visualise)
 
-  env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 2, max_steps=200, reuse_environments=False,
-      visualise=visualise)
+      env = env_sampler.sample_environment(task_name= 'make[stick]')
+        
+      reward += solve(env, primitive,  visualise=visualise)
 
-  env = env_sampler.sample_environment(task_name='make[axe]')
-  return solve(env, visualise=visualise)
+    elif(i==1):
+      primitive = "iron"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+        
+      reward += solve(env, primitive, visualise=visualise)
+
+    else:
+      primtive = "iron"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[axe]')
+        
+      reward += solve(env, primitive, visualise=visualise)
+  return reward
 
 
-def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-  from collections import deque
-  import numpy as np
+def collect(env, primitive) -> list[int]:
+  """Returns a list of actions to find and collect the primitve passed int he function in the passed env. """
+  import collections
 
-  # Helper function for hashing state. This creates a unique, hashable representation
-  # of the CraftState by combining its key components (grid, inventory, position, direction).
-  # Numpy arrays are converted to bytes for hashing as they are mutable and not directly hashable.
-  def _hash_state(state):
-      """
-      Creates a hashable representation of the CraftState for the visited set.
-      Includes grid, inventory, position, and direction.
-      """
-      grid_bytes = state.grid.tobytes()
-      inventory_bytes = state.inventory.tobytes()
-      return (grid_bytes, inventory_bytes, state.pos, state.dir)
+  initial_state = env._current_state
+  initial_grid = initial_state.grid
+  WIDTH, HEIGHT, _ = initial_grid.shape # Grid shape (width, height, n_kinds)
+  start_x, start_y = initial_state.pos
+  start_dir = initial_state.dir # Agent's initial facing direction
 
-  # Get the initial state from the environment. This ensures the planning starts
-  # from the current state of the CraftLab environment, allowing it to solve
-  # tasks from any arbitrary in-progress state, not just a freshly reset one.
-  initial_craft_state = env._current_state
-  initial_state_hash = _hash_state(initial_craft_state)
+  # Fetch action integer values dynamically from the environment for robustness.
+  action_map = env.action_specs()
+  _DOWN_ACTION = action_map['DOWN']
+  _UP_ACTION = action_map['UP']
+  _LEFT_ACTION = action_map['LEFT']
+  _RIGHT_ACTION = action_map['RIGHT']
+  _USE_ACTION = action_map['USE']
 
-  # Early exit: If the target item is already present in the initial inventory,
-  # no actions are needed, and an empty list of actions is returned.
-  if initial_craft_state.satisfies(None, item):
+  # Define action deltas for movement.
+  _ACTION_DELTAS = {
+      _UP_ACTION: (0, -1),   # Move up (decrease y)
+      _DOWN_ACTION: (0, 1),    # Move down (increase y)
+      _LEFT_ACTION: (-1, 0),  # Move left (decrease x)
+      _RIGHT_ACTION: (1, 0),   # Move right (increase x)
+  }
+
+  # Map movement actions to the resulting agent facing direction.
+  # Direction values: 0 (North), 1 (East), 2 (South), 3 (West)
+  _DIR_NORTH = 0
+  _DIR_EAST = 1
+  _DIR_SOUTH = 2
+  _DIR_WEST = 3
+
+  _ACTION_TO_DIR_MAP = {
+      _UP_ACTION: _DIR_NORTH,
+      _DOWN_ACTION: _DIR_SOUTH,
+      _LEFT_ACTION: _DIR_WEST,
+      _RIGHT_ACTION: _DIR_EAST,
+  }
+
+  def _get_forward_coords(x, y, direction):
+      """Returns the (x, y) coordinates of the cell directly in front of the agent."""
+      if direction == _DIR_NORTH:
+          return x, y - 1
+      elif direction == _DIR_EAST:
+          return x + 1, y
+      elif direction == _DIR_SOUTH:
+          return x, y + 1
+      elif direction == _DIR_WEST:
+          return x - 1, y
+      return x, y # Should not happen
+
+  is_grabbable = primitive in env.world.grabbable_indices
+  # Stone and water are typically 'used' via the USE action
+  is_use_target = (primitive == env.world.stone_index or
+                   primitive == env.world.water_index)
+
+  # If the primitive is neither grabbable nor a 'use'-able target,
+  # it cannot be collected by this function.
+  if not is_grabbable and not is_use_target:
       return []
 
-  # Initialize the Breadth-First Search (BFS) queue.
-  # Each element is a tuple: (current_CraftState_object, current_path_length).
-  # The path length is used for pruning against `max_steps`.
-  queue = deque()
-  queue.append((initial_craft_state, 0)) # Start with the initial state and a path length of 0.
+  # Pre-calculate the set of grid items that truly block movement.
+  # These are non-grabbable items, excluding workshops and water (which are usually traversable).
+  truly_impassable_grid_items = set(env.world.non_grabbable_indices)
+  truly_impassable_grid_items.discard(env.world.water_index)
+  truly_impassable_grid_items.difference_update(env.world.workshop_indices)
 
-  # `parent_map` is crucial for reconstructing the path efficiently.
-  # Key: hash of the current state.
-  # Value: (hash of the parent state, action taken from parent to reach current state).
-  # This avoids the memory overhead of storing full action lists in the queue,
-  # which was a potential inefficiency in `craft_v1`.
-  parent_map = {initial_state_hash: (None, None)} # The initial state has no parent.
+  # BFS Queue: stores (current_x, current_y, current_direction, path_actions_list)
+  queue = collections.deque([(start_x, start_y, start_dir, [])])
 
-  # `visited_hashes` is a set to keep track of all unique state hashes encountered so far.
-  # This prevents redundant exploration of already visited states and avoids infinite loops in cycles.
-  visited_hashes = {initial_state_hash}
+  # Visited set: stores (x, y, direction) tuples to prevent cycles and redundant explorations
+  visited = set([(start_x, start_y, start_dir)])
 
-  # Retrieve the maximum number of steps allowed for an episode from the environment.
-  # This acts as an upper bound for the length of any path found by BFS.
-  # A default value (e.g., 500) is used if `max_steps` is not explicitly set in the environment.
-  max_path_length = getattr(env, 'max_steps', 500)
-
-  # Define all possible actions as integer IDs. These correspond to the actions
-  # defined in the `CraftLab` action_specs (e.g., DOWN=0, UP=1, LEFT=2, RIGHT=3, USE=4).
-  ALL_ACTIONS = [0, 1, 2, 3, 4]
-
-  goal_found_state_hash = None # This will store the hash of the state where the goal was achieved.
-
-  # BFS main loop: continues as long as there are states to explore in the queue.
+  # BFS loop
   while queue:
-      current_state, current_path_length = queue.popleft()
+      curr_x, curr_y, curr_dir, path_actions = queue.popleft()
 
-      # Pruning: If the current path length already equals or exceeds the maximum allowed steps,
-      # further exploration from this state will exceed the episode limit.
-      # A path of exactly `max_path_length` actions is considered valid, but no more actions can be taken from it.
-      if current_path_length >= max_path_length:
-          continue
+      # --- Check if the current state satisfies the collection condition ---
+      if is_grabbable:
+          # For grabbable items, the target is to be on the same cell as the item.
+          if initial_grid[curr_x, curr_y, primitive] > 0:
+              return path_actions # Path to reach and collect the grabbable item
+      elif is_use_target:
+          # For items requiring USE action (like stone or water), the agent must be
+          # facing the item.
+          fwd_x, fwd_y = _get_forward_coords(curr_x, curr_y, curr_dir)
 
-      # Explore each possible action from the current state.
-      for action in ALL_ACTIONS:
-          # Apply the action to get the next state.
-          # CraftState.step returns (reward, new_CraftState_object). We only need the new state.
-          _, new_state = current_state.step(action)
-          new_state_hash = _hash_state(new_state)
-          new_path_length = current_path_length + 1
+          # Check boundaries for the cell in front
+          if (0 <= fwd_x < WIDTH and 0 <= fwd_y < HEIGHT and
+              initial_grid[fwd_x, fwd_y, primitive] > 0):
+              return path_actions + [_USE_ACTION] # Path to position + USE action
 
-          # Pruning: If taking this action results in a path length greater than the maximum allowed,
-          # this particular sequence of actions is invalid, so we skip it.
-          if new_path_length > max_path_length:
+      # --- End of collection condition check ---
+
+      # Explore neighbors for movement
+      for action_val, (dx, dy) in _ACTION_DELTAS.items():
+          next_x, next_y = curr_x + dx, curr_y + dy
+          next_dir = _ACTION_TO_DIR_MAP[action_val] # Direction changes based on the move
+
+          # Check boundaries: ensure the next position is within the grid.
+          if not (0 <= next_x < WIDTH and 0 <= next_y < HEIGHT):
               continue
 
-          # If this new state has not been visited before, process it.
-          if new_state_hash not in visited_hashes:
-              visited_hashes.add(new_state_hash)
-              # Store the parent state and the action taken to reach this new state in the `parent_map`.
-              parent_map[new_state_hash] = (_hash_state(current_state), action)
+          # Check if the next cell is blocked by any truly impassable items.
+          is_blocked_by_impassable = False
+          for k_idx in truly_impassable_grid_items:
+              if initial_grid[next_x, next_y, k_idx] > 0:
+                  is_blocked_by_impassable = True
+                  break
+          if is_blocked_by_impassable:
+              continue # This cell is blocked, don't move here
 
-              # Check if the goal (having the 'item' in inventory) is satisfied in the new state.
-              if new_state.satisfies(None, item):
-                  goal_found_state_hash = new_state_hash
-                  break # Goal found! Exit the inner loop (actions exploration for current state).
-              else:
-                  # If the goal is not satisfied, add the new state to the queue for further exploration.
-                  queue.append((new_state, new_path_length))
-      
-      # If the goal was found in the inner loop, break the outer loop (BFS) as well,
-      # as the shortest path has been found.
-      if goal_found_state_hash is not None:
-          break
+          # If the cell is not blocked and this specific (position, direction) state
+          # has not been visited, add it to the queue.
+          if (next_x, next_y, next_dir) not in visited:
+              visited.add((next_x, next_y, next_dir))
+              new_path_actions = path_actions + [action_val]
+              queue.append((next_x, next_y, next_dir, new_path_actions))
 
-  # If `goal_found_state_hash` is still None after the BFS completes, it means
-  # the target item cannot be crafted (or found) from the initial state within
-  # the specified `max_path_length`. In this case, an empty list of actions is returned.
-  if goal_found_state_hash is None:
-      return []
-
-  # Reconstruct the path by backtracking from the `goal_found_state_hash` using the `parent_map`.
-  path = []
-  current_hash = goal_found_state_hash
-  # Backtrack until we reach the initial state (which is the root of our parent tracking).
-  while current_hash != initial_state_hash:
-      parent_hash, action = parent_map[current_hash]
-      path.append(action)
-      current_hash = parent_hash
-  
-  # The path is constructed in reverse order (from goal to start), so reverse it
-  # to get the correct sequence of actions from the start state to the goal state.
-  path.reverse()
-  return path
+  # If no path to collect the primitive is found after exploring all reachable states,
+  # return an empty list.
+  return []
 
  
 print(evaluate())
