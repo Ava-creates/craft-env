@@ -369,7 +369,7 @@ import env_factory
 
 def solve(env, visualise=False) -> float:
   """Runs the environment with a craft function that returns list of actions to takr and returns total reward."""
-  item = 22 
+  item = 30
   actions_to_take = craft(env, item)
   observations = env.reset()
   total_reward = 0.0
@@ -391,130 +391,212 @@ def evaluate() -> float:
   hints_path = "resources/hints.yaml"
 
   env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 2, max_steps=200, reuse_environments=False,
+      recipes_path, hints_path, 2, max_steps=400, reuse_environments=False,
       visualise=visualise)
 
-  env = env_sampler.sample_environment(task_name='make[axe]')
+  env = env_sampler.sample_environment(task_name='make[goldarrow]')
   return solve(env, visualise=visualise)
 
 
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index"""
-  from collections import deque
-  import numpy as np
+  import collections # Required for deque for BFS
 
-  # Helper function for hashing state. This creates a unique, hashable representation
-  # of the CraftState by combining its key components (grid, inventory, position, direction).
-  # Numpy arrays are converted to bytes for hashing as they are mutable and not directly hashable.
-  def _hash_state(state):
-      """
-      Creates a hashable representation of the CraftState for the visited set.
-      Includes grid, inventory, position, and direction.
-      """
-      grid_bytes = state.grid.tobytes()
-      inventory_bytes = state.inventory.tobytes()
-      return (grid_bytes, inventory_bytes, state.pos, state.dir)
+  # Define action constants for clarity
+  DOWN = 0
+  UP = 1
+  LEFT = 2
+  RIGHT = 3
+  USE = 4
 
-  # Get the initial state from the environment. This ensures the planning starts
-  # from the current state of the CraftLab environment, allowing it to solve
-  # tasks from any arbitrary in-progress state, not just a freshly reset one.
-  initial_craft_state = env._current_state
-  initial_state_hash = _hash_state(initial_craft_state)
+  def _find_path_actions_to_adjacent(start_pos, current_grid, target_kind_idx, non_grabbable_indices):
+    """
+    Finds a path of movement actions (DOWN, UP, LEFT, RIGHT) from start_pos to a cell
+    adjacent to an instance of target_kind_idx.
+    Considers cells containing non_grabbable_indices as obstacles.
+    Returns a list of actions or None if no path is found.
+    The path leads to a position where `current_state.next_to(target_kind_idx)` would be True.
+    """
+    height, width, _ = current_grid.shape
+    
+    # Identify all grid locations where the target_kind_idx is present.
+    target_object_cells = []
+    for r in range(height):
+        for c in range(width):
+            if current_grid[r, c, target_kind_idx] == 1:
+                target_object_cells.append((r, c))
+    
+    if not target_object_cells:
+        return None # Target item not found on the grid at all
 
-  # Early exit: If the target item is already present in the initial inventory,
-  # no actions are needed, and an empty list of actions is returned.
-  if initial_craft_state.satisfies(None, item):
-      return []
+    q = collections.deque([(start_pos, [])]) # (current_position, path_actions_so_far)
+    visited = {start_pos}
 
-  # Initialize the Breadth-First Search (BFS) queue.
-  # Each element is a tuple: (current_CraftState_object, current_path_length).
-  # The path length is used for pruning against `max_steps`.
-  queue = deque()
-  queue.append((initial_craft_state, 0)) # Start with the initial state and a path length of 0.
+    # Define movement deltas (dr, dc) and their corresponding actions
+    moves = {
+        (1, 0): DOWN,
+        (-1, 0): UP,
+        (0, -1): LEFT,
+        (0, 1): RIGHT
+    }
 
-  # `parent_map` is crucial for reconstructing the path efficiently.
-  # Key: hash of the current state.
-  # Value: (hash of the parent state, action taken from parent to reach current state).
-  # This avoids the memory overhead of storing full action lists in the queue,
-  # which was a potential inefficiency in `craft_v1`.
-  parent_map = {initial_state_hash: (None, None)} # The initial state has no parent.
+    while q:
+        (r, c), path_actions = q.popleft()
 
-  # `visited_hashes` is a set to keep track of all unique state hashes encountered so far.
-  # This prevents redundant exploration of already visited states and avoids infinite loops in cycles.
-  visited_hashes = {initial_state_hash}
+        # Check if the current position (r, c) is adjacent to any of the target objects.
+        # This is the goal condition for the BFS: being in a position suitable for `USE`.
+        is_adjacent_to_target = False
+        for tr, tc in target_object_cells:
+            # Check 3x3 neighborhood around target (tr, tc), excluding the target cell itself
+            # as a valid agent position for the `next_to` concept.
+            if abs(r - tr) <= 1 and abs(c - tc) <= 1 and (r,c) != (tr,tc):
+                is_adjacent_to_target = True
+                break
+        
+        if is_adjacent_to_target:
+            return path_actions # Found a path to a cell adjacent to the target
 
-  # Retrieve the maximum number of steps allowed for an episode from the environment.
-  # This acts as an upper bound for the length of any path found by BFS.
-  # A default value (e.g., 500) is used if `max_steps` is not explicitly set in the environment.
-  max_path_length = getattr(env, 'max_steps', 500)
+        # Explore valid neighbors
+        for (dr, dc), action in moves.items():
+            nr, nc = r + dr, c + dc # New potential position
 
-  # Define all possible actions as integer IDs. These correspond to the actions
-  # defined in the `CraftLab` action_specs (e.g., DOWN=0, UP=1, LEFT=2, RIGHT=3, USE=4).
-  ALL_ACTIONS = [0, 1, 2, 3, 4]
+            # Check bounds
+            if not (0 <= nr < height and 0 <= nc < width):
+                continue
 
-  goal_found_state_hash = None # This will store the hash of the state where the goal was achieved.
+            # Check if already visited in this BFS path
+            if (nr, nc) in visited:
+                continue
+            
+            # Check if the next cell (nr, nc) is walkable.
+            # A cell is considered an obstacle if it contains any non-grabbable item.
+            is_obstacle = False
+            for idx in non_grabbable_indices:
+                if current_grid[nr, nc, idx] == 1: 
+                    is_obstacle = True
+                    break
+            if is_obstacle:
+                continue
 
-  # BFS main loop: continues as long as there are states to explore in the queue.
-  while queue:
-      current_state, current_path_length = queue.popleft()
+            visited.add((nr, nc))
+            q.append(((nr, nc), path_actions + [action]))
 
-      # Pruning: If the current path length already equals or exceeds the maximum allowed steps,
-      # further exploration from this state will exceed the episode limit.
-      # A path of exactly `max_path_length` actions is considered valid, but no more actions can be taken from it.
-      if current_path_length >= max_path_length:
-          continue
+    return None # No path found to any cell adjacent to the target
 
-      # Explore each possible action from the current state.
-      for action in ALL_ACTIONS:
-          # Apply the action to get the next state.
-          # CraftState.step returns (reward, new_CraftState_object). We only need the new state.
-          _, new_state = current_state.step(action)
-          new_state_hash = _hash_state(new_state)
-          new_path_length = current_path_length + 1
+  # --- Main craft_v2 function logic starts here ---
+  all_actions = []
 
-          # Pruning: If taking this action results in a path length greater than the maximum allowed,
-          # this particular sequence of actions is invalid, so we skip it.
-          if new_path_length > max_path_length:
-              continue
+  # Get initial state and world information from the CraftLab environment
+  current_state = env._current_state 
+  cookbook = env.world.cookbook
+  non_grabbable_indices = env.world.non_grabbable_indices
+  workshop_indices = env.world.workshop_indices # Indices of entities that serve as workshops
 
-          # If this new state has not been visited before, process it.
-          if new_state_hash not in visited_hashes:
-              visited_hashes.add(new_state_hash)
-              # Store the parent state and the action taken to reach this new state in the `parent_map`.
-              parent_map[new_state_hash] = (_hash_state(current_state), action)
+  # 1. Check if the goal item is already in inventory
+  if current_state.satisfies(None, item): # `goal_name` is ignored in `satisfies`
+      return all_actions # Already crafted, no actions needed
 
-              # Check if the goal (having the 'item' in inventory) is satisfied in the new state.
-              if new_state.satisfies(None, item):
-                  goal_found_state_hash = new_state_hash
-                  break # Goal found! Exit the inner loop (actions exploration for current state).
-              else:
-                  # If the goal is not satisfied, add the new state to the queue for further exploration.
-                  queue.append((new_state, new_path_length))
+  # Get the list of all primitive ingredients and their counts required for the final item.
+  # The `primitives_for` method recursively breaks down recipes to their base components.
+  needed_primitives = cookbook.primitives_for(item) # Returns {primitive_idx: count}
+
+  # 2. Gather all required primitives iteratively
+  # We loop until all necessary primitives are collected or a collection path is exhausted.
+  max_collection_attempts = 200 # Safety limit to prevent infinite loops in complex scenarios
+
+  for attempt in range(max_collection_attempts):
+      all_primitives_satisfied = True
+      missing_primitive_to_collect_idx = None # Store the index of the first encountered missing primitive
+
+      # Check if any primitive is still missing
+      for p_idx, p_count in needed_primitives.items():
+          if current_state.inventory[p_idx] < p_count:
+              all_primitives_satisfied = False
+              missing_primitive_to_collect_idx = p_idx
+              break # Found a missing primitive, focus on collecting this one
+
+      if all_primitives_satisfied:
+          break # All primitives are collected, exit the gathering loop
       
-      # If the goal was found in the inner loop, break the outer loop (BFS) as well,
-      # as the shortest path has been found.
-      if goal_found_state_hash is not None:
-          break
+      if attempt == max_collection_attempts - 1:
+          # Cannot collect all primitives within the allowed attempts.
+          return [] # Indicate failure or unreachability
 
-  # If `goal_found_state_hash` is still None after the BFS completes, it means
-  # the target item cannot be crafted (or found) from the initial state within
-  # the specified `max_path_length`. In this case, an empty list of actions is returned.
-  if goal_found_state_hash is None:
-      return []
+      # Find a path to the missing primitive and attempt to collect it
+      path_to_primitive = _find_path_actions_to_adjacent(
+          current_state.pos, current_state.grid, missing_primitive_to_collect_idx, non_grabbable_indices
+      )
 
-  # Reconstruct the path by backtracking from the `goal_found_state_hash` using the `parent_map`.
-  path = []
-  current_hash = goal_found_state_hash
-  # Backtrack until we reach the initial state (which is the root of our parent tracking).
-  while current_hash != initial_state_hash:
-      parent_hash, action = parent_map[current_hash]
-      path.append(action)
-      current_hash = parent_hash
+      if path_to_primitive is None:
+          # Cannot find a path to the necessary primitive on the grid.
+          # This primitive might be exhausted or inherently unreachable.
+          return [] # Indicate failure (item likely uncraftable)
+
+      # Execute the path to the primitive
+      for action in path_to_primitive:
+          # Use env.step() to apply the action and update the actual environment state
+          _, _, _ = env.step(action) 
+          all_actions.append(action)
+          # Always re-sync `current_state` with the environment's internal state after each step
+          current_state = env._current_state 
+
+      # After moving, use the primitive if the agent is adjacent to it.
+      # The pathfinding ensures adjacency, so this condition should usually be met.
+      if current_state.next_to(missing_primitive_to_collect_idx):
+          _, _, _ = env.step(USE)
+          all_actions.append(USE)
+          current_state = env._current_state # Update state after USE
+      else:
+          # This case indicates a problem with pathfinding or a dynamic environment
+          # where the target disappeared.
+          return [] # Indicate failure
+
+  # 3. Craft the final item if a workshop is required
+  # Get the specific recipe for the final goal item.
+  recipe_dict = cookbook.recipes.get(item) 
+
+  workshop_needed_idx = None
+  if recipe_dict: # If a recipe exists for the goal item (i.e., it's not a primitive)
+      # Check if one of the recipe's keys specifies a required workshop.
+      # The workshop index might be stored as a special key in the recipe.
+      for key in recipe_dict:
+          if key in workshop_indices:
+              workshop_needed_idx = key
+              break
   
-  # The path is constructed in reverse order (from goal to start), so reverse it
-  # to get the correct sequence of actions from the start state to the goal state.
-  path.reverse()
-  return path
+  if workshop_needed_idx is not None:
+      # Pathfind to the required workshop location
+      path_to_workshop = _find_path_actions_to_adjacent(
+          current_state.pos, current_state.grid, workshop_needed_idx, non_grabbable_indices
+      )
+
+      if path_to_workshop is None:
+          # Cannot find a path to the workshop.
+          return [] # Indicate failure
+
+      # Execute the path to the workshop
+      for action in path_to_workshop:
+          _, _, _ = env.step(action)
+          all_actions.append(action)
+          current_state = env._current_state # Update state
+
+      # Use the workshop to craft the item
+      if current_state.next_to(workshop_needed_idx):
+          _, _, _ = env.step(USE)
+          all_actions.append(USE)
+          current_state = env._current_state # Update state after USE
+      else:
+          # Agent not next to workshop after pathing, implies an issue.
+          return [] # Indicate failure
+
+  # 4. Final verification: Check if the goal item is now in inventory
+  # After all actions, get the latest state and check if the goal is satisfied.
+  if current_state.satisfies(None, item):
+      return all_actions # Successfully crafted
+  else:
+      # Goal not satisfied despite attempting all actions.
+      # This could mean the item is uncraftable, or there's a logic gap for complex recipes.
+      return []
 
  
 print(evaluate())
