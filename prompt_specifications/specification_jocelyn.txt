@@ -341,3 +341,4 @@ import numpy as np
 import time
 import collections
 import env_factory
+import craft
