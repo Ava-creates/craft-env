@@ -388,12 +388,12 @@ def evaluate() -> float:
       reward += solve(env, primitive, visualise=visualise)
 
     else:
-      primtive = "iron"
+      primitive = "gold"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
-      env = env_sampler.sample_environment(task_name= 'make[axe]')
+      env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
         
       reward += solve(env, primitive, visualise=visualise)
   return reward
@@ -411,135 +411,170 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   """
   current_state = env._current_state
   world = env.world
-  cookbook = world.cookbook
-  
-  # 1. Get the integer index for the primitive.
-  primitive_idx = cookbook.index[primitive]
-  
-  # 2. Determine if the primitive is grabbable (can be picked up and added to inventory).
-  # Non-grabbable items (like WORKSHOP, WATER) only require adjacency.
-  is_grabbable = primitive_idx in world.grabbable_indices
-  
-  # --- Early Exit Conditions ---
-  # If the primitive is grabbable and already in inventory, no actions are needed.
-  if is_grabbable and current_state.inventory[primitive_idx] > 0:
-      return []
-  # If the primitive is non-grabbable and the agent is already adjacent (or on it),
-  # the "collect" goal is considered met for such primitives.
-  # The `next_to` method checks the 3x3 neighborhood around the agent's position.
-  if not is_grabbable and current_state.next_to(primitive_idx):
-      return []
-  # -----------------------------
-  
-  # 3. Extract grid dimensions and a set of indices for non-grabbable entities
-  # which act as obstacles for movement.
-  grid = current_state.grid
-  WIDTH, HEIGHT, _ = grid.shape # Dimensions of the grid (WIDTH, HEIGHT, n_kinds)
-  non_grabbable_indices = world.non_grabbable_indices
-  
-  # Map action names to their integer values for clearer code.
-  action_map = env.action_specs() 
 
-  # Define movement deltas for each direction. These correspond to the agent's direction
-  # after taking the respective action.
-  # CraftState.dir also maps to these values: 0=DOWN, 1=UP, 2=LEFT, 3=RIGHT
-  move_deltas = {
-      action_map['DOWN']: (1, 0),  # (dr, dc) for moving South
-      action_map['UP']: (-1, 0),   # (dr, dc) for moving North
-      action_map['LEFT']: (0, -1),  # (dr, dc) for moving West
-      action_map['RIGHT']: (0, 1) # (dr, dc) for moving East
+  # 1. Get the primitive's integer ID from the cookbook.
+  try:
+    i_kind = world.cookbook.index[primitive.lower()]
+  except KeyError:
+    # If the primitive name is not recognized, it cannot be collected.
+    return []
+
+  # 2. Check if the primitive is already in the agent's inventory.
+  # If it is, no actions are needed to "collect" it.
+  if current_state.inventory[i_kind] > 0:
+      return []
+
+  # 3. Semantic check: Determine if this primitive is generally collectible via the 'USE' action.
+  # This includes items that can be picked up (grabbable) and specific resources like water or stone.
+  # Items like workshops, boundaries, or bridges are typically not "collected" into inventory.
+  # This check helps prune the search early if the goal is fundamentally uncollectible by USE.
+  is_collectible_via_use = (
+      i_kind in world.grabbable_indices or 
+      i_kind == world.water_index or 
+      i_kind == world.stone_index
+  )
+  
+  if not is_collectible_via_use:
+    return []
+
+  # 4. Define action integers and direction deltas for movement and interaction.
+  action_map = env.action_specs()
+  UP_ACT = action_map["UP"]
+  DOWN_ACT = action_map["DOWN"]
+  LEFT_ACT = action_map["LEFT"]
+  RIGHT_ACT = action_map["RIGHT"]
+  USE_ACT = action_map["USE"]
+
+  move_actions = [UP_ACT, DOWN_ACT, LEFT_ACT, RIGHT_ACT]
+
+  # _DIR_TO_DELTA_FRONT maps the agent's integer direction (0=UP, 1=RIGHT, 2=DOWN, 3=LEFT)
+  # to the (row_change, col_change) needed to find the cell directly in front of the agent.
+  _DIR_TO_DELTA_FRONT = {
+      0: (-1, 0), # UP: row - 1, col (moves North)
+      1: (0, 1),  # RIGHT: row, col + 1 (moves East)
+      2: (1, 0),  # DOWN: row + 1, col (moves South)
+      3: (0, -1)  # LEFT: row, col - 1 (moves West)
   }
 
-  # Helper function to check if a given (row, column) position is traversable.
-  # An agent can move into a cell if it's within grid boundaries and doesn't contain
-  # any non-grabbable entities.
-  def _is_traversable(pos):
-      r, c = pos
-      # Check grid boundaries
-      if not (0 <= r < WIDTH and 0 <= c < HEIGHT):
-          return False
-      # Check for non-grabbable obstacles
-      for i_kind in non_grabbable_indices:
-          if grid[r, c, i_kind] > 0: # If the cell contains a non-grabbable item
-              return False
-      return True
+  # Helper function to calculate the shortest sequence of turning actions
+  # to face a target direction from the current direction.
+  def _get_turning_actions(current_dir: int, target_dir: int) -> list[int]:
+      if current_dir == target_dir:
+          return [] # Already facing the target direction
+      
+      # Calculate the difference in directions, handling circularity (0-3).
+      # Adding 4 and taking modulo 4 ensures a positive difference.
+      diff = (target_dir - current_dir + 4) % 4
+      
+      if diff == 1: # Target is one step clockwise (e.g., UP(0) -> RIGHT(1))
+          return [RIGHT_ACT]
+      elif diff == 3: # Target is one step counter-clockwise (e.g., UP(0) -> LEFT(3))
+          return [LEFT_ACT]
+      else: # diff == 2, implies a 180-degree turn (e.g., UP(0) -> DOWN(2))
+          # Two consecutive right or left turns will achieve this.
+          return [RIGHT_ACT, RIGHT_ACT] # Arbitrarily choose RIGHT_ACT twice
 
-  # 4. Find all locations on the grid where the target primitive exists.
-  primitive_locations = []
-  for r in range(WIDTH):
-      for c in range(HEIGHT):
-          # Check if primitive is present at (r, c). Use > 0 to account for possible counts.
-          if grid[r, c, primitive_idx] > 0: 
-              primitive_locations.append((r, c))
+  # 5. Initialize Breadth-First Search (BFS).
+  q = collections.deque()
+  # The 'visited' set stores (row, col, direction, inventory_tuple) to ensure
+  # identical states with different inventories are treated distinctly.
+  visited = set()
 
-  # If the primitive isn't found anywhere on the grid, no actions can be taken.
-  if not primitive_locations:
-      return []
+  # Start BFS from the current environment state.
+  initial_inventory_tuple = tuple(current_state.inventory)
+  q.append((current_state, []))
+  visited.add((current_state.pos[0], current_state.pos[1], current_state.dir, initial_inventory_tuple))
 
-  # 5. Use Breadth-First Search (BFS) to find the shortest path to a primitive.
-  # The state in our BFS queue is: (current_position (tuple), current_direction (int), list_of_actions_taken)
-  initial_pos = current_state.pos
-  initial_dir = current_state.dir # Agent's initial facing direction (0=DOWN, 1=UP, 2=LEFT, 3=RIGHT)
-
-  q = collections.deque([(initial_pos, initial_dir, [])])
-  # The visited set prevents infinite loops and re-processing states.
-  # State is defined by (row, column, direction) as direction matters for interaction (e.g., USE action).
-  visited = {(initial_pos[0], initial_pos[1], initial_dir)}
-
-  while q:
-      curr_pos, curr_dir, path_actions = q.popleft()
-
-      # Check if the current state satisfies the "collect" goal.
-      # This means being adjacent to the primitive (and potentially facing it for 'USE').
-      goal_achieved = False
-      final_actions = list(path_actions) # Create a mutable copy to append 'USE' if needed
-
-      for p_r, p_c in primitive_locations:
-          # Calculate relative position of the primitive from the agent's current position.
-          dr_to_prim = p_r - curr_pos[0]
-          dc_to_prim = p_c - curr_pos[1]
-
-          # Check if the agent is directly adjacent (up, down, left, or right) to the primitive.
-          if abs(dr_to_prim) + abs(dc_to_prim) == 1:
-              if is_grabbable:
-                  # If the primitive is grabbable, the agent must be adjacent AND facing it
-                  # to use the 'USE' action.
-                  needed_dir_to_prim = None
-                  if dr_to_prim == 1 and dc_to_prim == 0: needed_dir_to_prim = action_map['DOWN']
-                  elif dr_to_prim == -1 and dc_to_prim == 0: needed_dir_to_prim = action_map['UP']
-                  elif dc_to_prim == 1 and dr_to_prim == 0: needed_dir_to_prim = action_map['RIGHT']
-                  elif dc_to_prim == -1 and dr_to_prim == 0: needed_dir_to_prim = action_map['LEFT']
-                  
-                  # If the agent is facing the primitive, append 'USE' and consider goal achieved.
-                  if curr_dir == needed_dir_to_prim:
-                      final_actions.append(action_map['USE'])
-                      goal_achieved = True
-                      break # Found a path to collect one instance of the primitive
-              else:
-                  # If the primitive is non-grabbable (e.g., WORKSHOP, WATER),
-                  # simply being adjacent to it fulfills the "collect" goal (as it cannot be inventoried).
-                  goal_achieved = True
-                  break # Found a path to reach adjacency
-
-      if goal_achieved:
-          return final_actions
-
-      # If the goal is not yet achieved from the current position, explore possible next moves.
-      for action_name, action_val in action_map.items():
-          # Only consider movement actions (UP, DOWN, LEFT, RIGHT).
-          # `USE` action is handled only in the goal check part.
-          if action_val in move_deltas: 
-              dr, dc = move_deltas[action_val]
-              next_pos = (curr_pos[0] + dr, curr_pos[1] + dc)
-              next_dir = action_val # When moving, the agent's direction updates to the direction of movement.
-
-              # Check if the next position is traversable and hasn't been visited with this direction.
-              if _is_traversable(next_pos):
-                  if (next_pos[0], next_pos[1], next_dir) not in visited:
-                      visited.add((next_pos[0], next_pos[1], next_dir))
-                      q.append((next_pos, next_dir, path_actions + [action_val]))
+  grid_width, grid_height, _ = current_state.grid.shape
   
-  # If the BFS completes without finding a path to any primitive, return an empty list.
+  # MAX_EXPLORED_STATES: This limit prevents extremely long searches in complex environments.
+  # For v2, we are increasing the multiplier for `MAX_EXPLORED_STATES` to allow for
+  # a deeper exploration of states. This is crucial for scenarios where intermediate
+  # pickups (e.g., acquiring a tool that then allows harvesting) are required before
+  # the final primitive can be collected. This makes the search more robust than v1.
+  MAX_EXPLORED_STATES = grid_width * grid_height * 4 * world.cookbook.n_kinds * 3 # Increased multiplier for more depth and robustness
+  explored_states_count = 0
+
+  # 6. BFS Loop.
+  while q:
+    state, path = q.popleft() # Dequeue the current state and the path to reach it
+    explored_states_count += 1
+
+    # Apply the soft limit: if too many states have been explored,
+    # prevent further expansion from this path, but allow existing queue items to be processed.
+    if explored_states_count > MAX_EXPLORED_STATES:
+        continue 
+
+    current_r, current_c = state.pos
+    current_dir = state.dir
+    
+    # Goal Check: Can we collect the primitive from this `state`?
+    # This specifically checks for the target primitive (`i_kind`) in the immediate vicinity
+    # and attempts to collect it.
+    if state.next_to(i_kind):
+        for target_dir in range(4): # Iterate through all 4 cardinal directions (UP, RIGHT, DOWN, LEFT)
+            dr, dc = _DIR_TO_DELTA_FRONT[target_dir]
+            facing_r, facing_c = current_r + dr, current_c + dc
+
+            # Ensure the cell directly in front is within grid bounds and contains the target primitive.
+            if (0 <= facing_r < grid_width and 0 <= facing_c < grid_height and 
+                state.grid[facing_r, facing_c, i_kind] == 1):
+                
+                # Simulate the turning actions required to face the primitive.
+                temp_state_after_turns = state 
+                turns_to_face = _get_turning_actions(current_dir, target_dir)
+                for turn_action in turns_to_face:
+                    # Reward is always 0.0 in this implementation, so we discard it.
+                    _, temp_state_after_turns = temp_state_after_turns.step(turn_action)
+
+                # Store inventory before attempting USE to verify successful collection.
+                inventory_before_use = np.copy(temp_state_after_turns.inventory)
+
+                # Simulate the 'USE' action. This is where the collection attempt happens.
+                # Reward is always 0.0, so we discard it.
+                _, state_after_use = temp_state_after_turns.step(USE_ACT)
+
+                # Critical success check: Did the count of the primitive in inventory actually increase?
+                # This verifies successful collection, accounting for any internal game rules
+                # (e.g., tools needed, resource depletion) handled by `CraftState.step`.
+                if state_after_use.inventory[i_kind] > inventory_before_use[i_kind]:
+                    return path + turns_to_face + [USE_ACT]
+
+    # Explore possible movement actions:
+    for action in move_actions:
+      # Reward is always 0.0, so we discard it.
+      _, next_state = state.step(action)
+      next_inventory_tuple = tuple(next_state.inventory)
+      next_state_key = (next_state.pos[0], next_state.pos[1], next_state.dir, next_inventory_tuple)
+
+      # Add the new state to the queue if it hasn't been visited with this inventory configuration.
+      if next_state_key not in visited:
+        visited.add(next_state_key)
+        q.append((next_state, path + [action]))
+    
+    # Explore the USE action from the current position.
+    # This is important if using an item at the current position (e.g., picking up a tool
+    # or activating something) can change the inventory state or open up new paths.
+    inventory_before_any_use = np.copy(state.inventory)
+    # Reward is always 0.0, so we discard it.
+    _, state_after_current_use = state.step(USE_ACT)
+    
+    # Check if the USE action resulted in a meaningful state change.
+    # This prevents adding redundant states to the queue if USE had no effect (e.g., using an empty cell).
+    if not (np.array_equal(state_after_current_use.inventory, inventory_before_any_use) and
+            state_after_current_use.pos == state.pos and
+            state_after_current_use.dir == state.dir):
+
+        next_inventory_tuple = tuple(state_after_current_use.inventory)
+        next_state_key = (state_after_current_use.pos[0], state_after_current_use.pos[1], state_after_current_use.dir, next_inventory_tuple)
+
+        if next_state_key not in visited:
+            visited.add(next_state_key)
+            q.append((state_after_current_use, path + [USE_ACT]))
+
+  # If the BFS queue is exhausted and no path to collect the primitive was found,
+  # it means the primitive is unreachable from the initial state given the current conditions
+  # and exploration limits.
   return []
 
  
