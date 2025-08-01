@@ -50,7 +50,13 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
-        
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
       reward += solve(env, primitive, visualise=visualise)
   return reward
 

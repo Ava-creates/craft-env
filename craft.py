@@ -90,7 +90,7 @@ class CraftWorld(object):
     elif self.env_type == 1:
       s = self.sample_scenario_medium(make_island=make_island, make_cave=make_cave)
     else:
-      s = self.sample_scenario(make_island=make_island, make_cave=make_cave)
+      s = self.sample_scenario_hard(make_island=make_island, make_cave=make_cave)
     return s
 
   def sample_scenario(self, make_island=False, make_cave=False):
@@ -203,11 +203,21 @@ class CraftWorld(object):
         wood_index = self.cookbook.index["wood"]
         grid[5, 6, wood_index] = 1
 
-        grass_index = self.cookbook.index["grass"]
+        grass_index = self.cookbook.index["iron"]
         grid[5,7, grass_index] = 1
 
         workshop1_index = self.cookbook.index["workshop2"]
-        grid[7, 7, workshop1_index] = 1
+        grid[5,9, workshop1_index] = 1
+
+        
+        (gx, gy) = (6,1)
+        treasure_index = self.cookbook.index["gold"] 
+        wall_index =  self.water_index 
+        grid[gx, gy, treasure_index] = 1
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+              if not grid[gx + i, gy + j, :].any():
+                grid[gx + i, gy + j, wall_index] = 1
         
         return CraftScenario(grid, init_pos, self)
 
