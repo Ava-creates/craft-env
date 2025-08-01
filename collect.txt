@@ -62,7 +62,7 @@ def evaluate() -> float:
 
 @funsearch.evolve
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a list of actions to find and collect the primitive in the passed env.
+  """Returns a list of actions to find, use already available items, and collect the primitive in the passed env.
     
     Args:
         env (env.CraftLab): The CraftLab object.
