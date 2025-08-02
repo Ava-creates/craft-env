@@ -62,13 +62,22 @@ def evaluate() -> float:
 
 @funsearch.evolve
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a list of actions to find, use already available items, and collect the primitive in the passed env.
-    
-    Args:
-        env (env.CraftLab): The CraftLab object.
-        primitive (str): The name of the primitive to collect.
+  """Returns a sequence of actions to collect the specified primitive, using only the agent's current inventory.
 
-    Returns:
-        List[int]: A sequence of action indices to execute.
-  """  
+  This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
+  It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
+  for example:
+    - Using a BRIDGE to cross WATER in order to reach GOLD.
+    - Using a PICKAXE to mine GEM.
+
+  The function assumes the world is static except for changes resulting from tool use (e.g., placing a bridge).
+  It does not perform crafting or attempt to acquire new items—only available tools in the inventory are used.
+
+  Args:
+      env (env.CraftLab): The CraftLab environment instance.
+      primitive (str): The name of the primitive to collect.
+
+  Returns:
+      List[int]: A list of action indices the agent can execute to collect the primitive.
+  """ 
   return []
