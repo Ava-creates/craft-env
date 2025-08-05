@@ -406,109 +406,129 @@ def evaluate() -> float:
 
 
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a list of actions to find, use already available items, and collect the primitive in the passed env.
-    
-    Args:
-        env (env.CraftLab): The CraftLab object.
-        primitive (str): The name of the primitive to collect.
+  """Returns a sequence of actions to collect the specified primitive, using only the agent's current inventory.
 
-    Returns:
-        List[int]: A sequence of action indices to execute.
+  This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
+  It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
+  for example:
+    - Using a BRIDGE to cross WATER in order to reach GOLD.
+    - Using a PICKAXE to mine GEM.
+
+  The function assumes the world is static except for changes resulting from tool use (e.g., placing a bridge).
+  It does not perform crafting or attempt to acquire new items—only available tools in the inventory are used.
+
+  Args:
+      env (env.CraftLab): The CraftLab environment instance.
+      primitive (str): The name of the primitive to collect.
+
+  Returns:
+      List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  state = env._current_state
-  grid = state.grid
-  agent_pos = state.pos  # (px, py)
-  cookbook = env.world.cookbook
-  
-  # Get the integer index for the primitive
-  try:
-    primitive_idx = cookbook.index[primitive]
-  except KeyError:
-    # Primitive not found in the cookbook, return empty actions
-    return []
+  ACTION_MAP = {
+      "UP": 0,
+      "DOWN": 1,
+      "LEFT": 2,
+      "RIGHT": 3,
+      "USE": 4
+  }
 
-  # Improvement 1: Check if the primitive is already in the inventory.
-  # If the agent already possesses the primitive, no actions are needed to collect it.
-  if state.inventory[primitive_idx] > 0:
-    return []
+  def heuristic(a, b):
+      return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-  # Get grid dimensions (WIDTH, HEIGHT)
-  WIDTH, HEIGHT, _ = grid.shape
+  def find_shortest_path(grid, start_pos, target_kind, inventory):
+      directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # UP, DOWN, LEFT, RIGHT
 
-  # Get action integer mappings
-  action_map = env.action_specs()
-  UP = action_map['UP']
-  DOWN = action_map['DOWN']
-  LEFT = action_map['LEFT']
-  RIGHT = action_map['RIGHThT']
-  USE = action_map['USE']
+      def can_move(x, y):
+          if not (0 <= x < grid.shape[0] and 0 <= y < grid.shape[1]):
+              return False
+          
+          for i_kind in range(grid.shape[2]):
+              if grid[x, y, i_kind] == 1:
+                  tool_needed = determine_tool(i_kind)
+                  if tool_needed is not None and inventory[tool_needed] <= 0:
+                      return False
+          return True
 
-  # Define possible moves as (action, (dx, dy)) tuples
-  # (dx, dy) represent the change in (x, y) coordinates for each action
-  # Remember: CraftWorld uses (x, y) where x is horizontal, y is vertical.
-  # DOWN increases y, UP decreases y, RIGHT increases x, LEFT decreases x.
-  moves = [
-      (UP, (0, -1)),
-      (DOWN, (0, 1)),
-      (LEFT, (-1, 0)),
-      (RIGHT, (1, 0))
-  ]
+      def determine_tool(kind_index):
+          kind_name = current_state.world.cookbook.index.get(kind_index)
+          # Define mapping of kind to required tools based on the world's rules
+          tool_map = {
+              "WATER": current_state.world.water_index,
+              "GEM": current_state.world.stone_index,
+              # Add more mappings as necessary
+          }
+          return tool_map.get(kind_name, None)
 
-  # Get indices for known impassable terrain types.
-  # 'BOUNDARY' is typically an impassable wall.
-  # 'WATER' is generally impassable without specific tools (like a bridge),
-  # so for general collection, we treat it as an obstacle.
-  boundary_idx = cookbook.index['BOUNDARY']
-  water_idx = env.world.water_index # Directly from CraftWorld for consistency
+      priority_queue = []
+      heapq.heappush(priority_queue, (0, start_pos[0], start_pos[1], []))
+      visited = set()
+      
+      while priority_queue:
+          _, x, y, path = heapq.heappop(priority_queue)
+          
+          if (x, y) in visited:
+              continue
+          visited.add((x, y))
+          
+          # Check if target is found
+          if grid[x, y, target_kind] == 1:
+              return path + [(x, y)]
+          
+          for dx, dy in directions:
+              nx, ny = x + dx, y + dy
+              
+              if can_move(nx, ny):
+                  heapq.heappush(priority_queue, (heuristic((nx, ny), start_pos) + len(path) + 1, nx, ny, path + [(nx, ny)]))
+      return None
 
-  # Breadth-First Search (BFS) for the shortest path to a cell adjacent to the primitive.
-  # queue stores tuples of (current_position_tuple, path_list_of_actions_to_reach_here)
-  queue = collections.deque([(agent_pos, [])])
-  # visited set stores positions (x, y) to avoid cycles and redundant processing
-  visited = {agent_pos}
+  actions = []
+  current_state = env._current_state
+  grid = current_state.grid.copy()
+  pos = current_state.pos
+  inventory = current_state.inventory.copy()
 
-  while queue:
-    current_pos, current_path = queue.popleft()
-    cx, cy = current_pos
+  # Map primitive names to their respective indices in the index list
+  primitives_index = current_state.world.cookbook.index.index(primitive)
 
-    # Create a temporary CraftState object to check the 'next_to' condition.
-    # This allows us to simulate the agent's position without changing the
-    # actual environment state during pathfinding.
-    # The grid, direction, and inventory remain constant for the pathfinding logic.
-    temp_state = craft.CraftState(state.scenario, state.grid, current_pos, state.dir, state.inventory)
+  # Find the shortest path to a cell containing the target kind
+  path_to_primitive = find_shortest_path(grid, pos, primitives_index, inventory)
+  if path_to_primitive:
+      for (x, y) in path_to_primitive[:-1]:  # Exclude the last position since we'll use there
+          dx, dy = x - pos[0], y - pos[1]
+          current_direction = current_state.dir
+          
+          if dx == 0 and dy < 0:  # UP
+              target_direction = 0
+          elif dx == 0 and dy > 0:  # DOWN
+              target_direction = 1
+          elif dx < 0 and dy == 0:  # LEFT
+              target_direction = 2
+          elif dx > 0 and dy == 0:  # RIGHT
+              target_direction = 3
 
-    # Check if the primitive is in the 3x3 neighborhood of the current position.
-    # If so, the agent is in a position to "use" (collect) the primitive.
-    if temp_state.next_to(primitive_idx):
-      # If found, append the 'USE' action and return the complete path.
-      return current_path + [USE]
+          if current_direction != target_direction:
+              actions.append(target_direction)  # Add action to change direction
 
-    # Explore valid neighbors
-    for action, (dx, dy) in moves:
-      next_x, next_y = cx + dx, cy + dy
-      next_pos = (next_x, next_y)
+          pos = (x, y)
+          actions.append(ACTION_MAP["USE"])
 
-      # Check if the next position is within grid boundaries.
-      if 0 <= next_x < WIDTH and 0 <= next_y < HEIGHT:
-        # Improvement 2: Check if the next position is traversable.
-        # A cell is considered traversable if it does not contain a boundary or water.
-        is_traversable = True
-        
-        # Check if the cell contains a boundary
-        if grid[next_x, next_y, boundary_idx] > 0:
-            is_traversable = False
-        # Check if the cell contains water (only if not already marked non-traversable)
-        if is_traversable and grid[next_x, next_y, water_idx] > 0:
-            is_traversable = False
-        
-        if is_traversable:
-            # Check if the next position has already been visited to prevent cycles and redundant paths.
-            if next_pos not in visited:
-              visited.add(next_pos)
-              queue.append((next_pos, current_path + [action]))
-  
-  # If the queue becomes empty and no path to the primitive was found, return an empty list.
-  return []
+      # Collect the primitive at the last position
+      dx, dy = path_to_primitive[-1][0] - pos[0], path_to_primitive[-1][1] - pos[1]
+      if dx == 0 and dy < 0:  # UP
+          target_direction = 0
+      elif dx == 0 and dy > 0:  # DOWN
+          target_direction = 1
+      elif dx < 0 and dy == 0:  # LEFT
+          target_direction = 2
+      elif dx > 0 and dy == 0:  # RIGHT
+          target_direction = 3
+
+      if current_state.dir != target_direction:
+          actions.append(target_direction)  # Add action to change direction
+
+      actions.append(ACTION_MAP["USE"])
+
+  return actions
 
  
 print(evaluate())
