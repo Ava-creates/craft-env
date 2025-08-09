@@ -21,6 +21,7 @@ def solve(env, primitive, visualise=False) -> float:
     if done:
       break
 
+  print(primitive, total_reward)
   return total_reward
 
 def evaluate() -> float:
@@ -69,99 +70,98 @@ def evaluate() -> float:
   return reward
 
 # @funsearch.evolve
-def collect(env, primitive):
-  state = env._current_state
-  cookbook = env.world.cookbook
-  grid = state.grid  # Current grid state (static for pathfinding within this call)
-  
-  # 1. Get the integer ID for the primitive from the cookbook index
-  primitive_idx = cookbook.index[primitive] 
-  if primitive_idx is None:
-    # Primitive name not found in cookbook, cannot collect.
-    return []
+def collect(env, primitive) -> list[int]:
+  from collections import deque
 
-  # Determine if the primitive is grabbable (i.e., can be held in inventory).
-  # Grabbable items are things like WOOD, IRON, GRASS, etc., which require a 'USE' action.
-  is_grabbable = primitive_idx in env.world.grabbable_indices
-  
-  # Optimization: If the primitive is grabbable and already in inventory, 
-  # no collection actions are needed. The item is already "collected".
-  if is_grabbable and state.inventory[primitive_idx] > 0:
-    return []
+  ACTION_MAP = {
+      "UP": 0,
+      "DOWN": 1,
+      "LEFT": 2,
+      "RIGHT": 3,
+      "USE": 4
+  }
 
-  # Get action mappings for easier use
-  action_map = env.action_specs()
-  ACTION_UP = action_map['UP']
-  ACTION_DOWN = action_map['DOWN']
-  ACTION_LEFT = action_map['LEFT']
-  ACTION_RIGHT = action_map['RIGHT']
-  ACTION_USE = action_map['USE']
+  def find_shortest_path(grid, start_pos, target_kind, inventory):
+      directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # UP, DOWN, LEFT, RIGHT
 
-  # Grid dimensions (WIDTH, HEIGHT, n_kinds) for boundary checks
-  WIDTH, HEIGHT, _ = grid.shape
+      def can_move(x, y, pos_direction):
+          if not (0 <= x < grid.shape[0] and 0 <= y < grid.shape[1]):
+              return False
+          
+          # Check for obstacles based on inventory
+          is_clear = True
+          for i_kind in range(grid.shape[2]):
+              if grid[x, y, i_kind] == 1:
+                  tool_needed = determine_tool(i_kind)
+                  if tool_needed and inventory[tool_needed] <= 0:
+                      is_clear = False
+                      break
+          return is_clear
 
-  # Determine other properties of the target primitive for goal checking logic.
-  is_workshop = primitive_idx in env.world.workshop_indices
-  is_stationary_primitive = (primitive_idx == env.world.water_index or 
-                             primitive_idx == env.world.stone_index or 
-                             primitive_idx == cookbook.index['BOUNDARY'])
-  
-  # Breadth-First Search (BFS) setup
-  q = collections.deque([(state.pos, state.dir, [])]) 
-  visited = {(state.pos, state.dir)} 
+      def determine_tool(kind_index):
+          # This function should map kinds to required tools based on the world's rules
+          kind_name = current_state.world.cookbook.index.get(kind_index)
+          if kind_name == "WATER":
+              return current_state.world.water_index  # Assuming water needs a bridge or boat tool
+          elif kind_name == "ROCK":
+              return current_state.world.stone_index  # Assuming rocks need a pickaxe tool
+          else:
+              return None
 
-  min_path_len = float('inf')
-  best_path_actions = []
+      queue = deque([(start_pos[0], start_pos[1], current_state.dir, [])])
+      visited = set()
+      while queue:
+          x, y, pos_direction, path = queue.popleft()
+          if (x, y, pos_direction) in visited:
+              continue
+          visited.add((x, y, pos_direction))
+          
+          # Check if target is found
+          if grid[x, y, target_kind] == 1:
+              return path + [(x, y)]
+          
+          for dx, dy in directions:
+              nx, ny = x + dx, y + dy
+              new_direction = (dx, dy)
+              
+              if can_move(nx, ny, new_direction):
+                  queue.append((nx, ny, new_direction, path + [(nx, ny)]))
+      return None
 
-  while q:
-    current_pos, current_dir, current_actions = q.popleft()
+  actions = []
+  current_state = env._current_state
+  grid = current_state.grid.copy()
+  pos = current_state.pos
+  inventory = current_state.inventory.copy()
 
-    if len(current_actions) >= min_path_len:
-        continue
+  # Map primitive names to their respective indices in the index list
+  primitives_index = current_state.world.cookbook.index.index(primitive)
 
-    is_goal_reached = False
-    actions_to_complete_goal = []
+  # Find the shortest path to a cell containing the target kind
+  path_to_primitive = find_shortest_path(grid, pos, primitives_index, inventory)
+  if path_to_primitive:
+      for (x, y) in path_to_primitive[:-1]:  # Exclude the last position since we'll use there
+          dx, dy = x - pos[0], y - pos[1]
+          current_direction = current_state.dir
+          
+          if dx == 0 and dy < 0:  # UP
+              target_direction = 0
+          elif dx == 0 and dy > 0:  # DOWN
+              target_direction = 1
+          elif dx < 0 and dy == 0:  # LEFT
+              target_direction = 2
+          elif dx > 0 and dy == 0:  # RIGHT
+              target_direction = 3
 
-    if is_grabbable:
-      fwd_x, fwd_y = current_pos
-      if current_dir == 0: fwd_y -= 1  # UP
-      elif current_dir == 1: fwd_y += 1  # DOWN
-      elif current_dir == 2: fwd_x -= 1  # LEFT
-      elif current_dir == 3: fwd_x += 1  # RIGHT
-      
-      if 0 <= fwd_x < WIDTH and 0 <= fwd_y < HEIGHT:
-        if grid[fwd_x, fwd_y, primitive_idx] > 0:
-          is_goal_reached = True
-          actions_to_complete_goal = [ACTION_USE] 
+          if current_direction != target_direction:
+              actions.append(target_direction)  # Add action to change direction
 
-    elif is_workshop or is_stationary_primitive:
-      if grid[current_pos[0], current_pos[1], primitive_idx] > 0:
-        is_goal_reached = True
-        actions_to_complete_goal = [] 
+          actions.append(ACTION_MAP["USE"])
 
-    if is_goal_reached:
-      total_actions = current_actions + actions_to_complete_goal
-      if len(total_actions) < min_path_len:
-        min_path_len = len(total_actions)
-        best_path_actions = total_actions
+      # Collect the primitive
+      actions.append(ACTION_MAP["USE"])
 
-    for action_type in [ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT]:
-      temp_state_for_step = craft.CraftState(
-          state.scenario, state.grid, current_pos, current_dir, state.inventory
-      )
-      _, new_temp_state = temp_state_for_step.step(action_type)
-      
-      new_pos = new_temp_state.pos
-      new_dir = new_temp_state.dir
-      new_state_tuple = (new_pos, new_dir)
-
-      if new_state_tuple not in visited:
-        visited.add(new_state_tuple)
-        q.append((new_pos, new_dir, current_actions + [action_type]))
-
-  return best_path_actions
-
-
+  return actions
 
 
 print(evaluate())

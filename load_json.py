@@ -14,7 +14,7 @@ def main():
     with open(input_file, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    function_name = "craft"
+    function_name = "collect"
     body = extract_function_body(data, function_name)
 
     print(f"\nFunction '{function_name}' body:\n")

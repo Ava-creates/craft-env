@@ -12,7 +12,8 @@ def solve(env, primitive, visualise=False) -> float:
     total_reward += reward
     if done:
       break
-
+  if total_reward > 0.5:
+    return 0.5
   return total_reward
 
 @funsearch.run
@@ -62,7 +63,7 @@ def evaluate() -> float:
 
 @funsearch.evolve
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a sequence of actions to collect the specified primitive, using only the agent's current inventory.
+  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory.
 
   This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
   It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
