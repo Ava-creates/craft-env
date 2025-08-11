@@ -356,7 +356,8 @@ def solve(env, primitive, visualise=False) -> float:
     total_reward += reward
     if done:
       break
-
+  if total_reward > 0.5:
+    return 0.5
   return total_reward
 
 
@@ -406,7 +407,7 @@ def evaluate() -> float:
 
 
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a sequence of actions to collect the specified primitive, using only the agent's current inventory.
+  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory.
 
   This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
   It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
@@ -424,109 +425,106 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  ACTION_MAP = {
-      "UP": 0,
-      "DOWN": 1,
-      "LEFT": 2,
-      "RIGHT": 3,
-      "USE": 4
-  }
+  def find_shortest_path(start, targets):
+    grid = env._current_state.grid
+    queue = collections.deque([start])
+    visited = set()
+    parent = {tuple(start): None}
 
-  def heuristic(a, b):
-      return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    while queue:
+      current_pos = queue.popleft()
 
-  def find_shortest_path(grid, start_pos, target_kind, inventory):
-      directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # UP, DOWN, LEFT, RIGHT
+      if tuple(current_pos) in targets:
+        path = []
+        while current_pos is not None:
+          path.append(current_pos)
+          current_pos = parent[tuple(current_pos)]
+        path.reverse()
+        return path
 
-      def can_move(x, y):
-          if not (0 <= x < grid.shape[0] and 0 <= y < grid.shape[1]):
-              return False
-          
-          for i_kind in range(grid.shape[2]):
-              if grid[x, y, i_kind] == 1:
-                  tool_needed = determine_tool(i_kind)
-                  if tool_needed is not None and inventory[tool_needed] <= 0:
-                      return False
-          return True
+      visited.add(tuple(current_pos))
 
-      def determine_tool(kind_index):
-          kind_name = current_state.world.cookbook.index.get(kind_index)
-          # Define mapping of kind to required tools based on the world's rules
-          tool_map = {
-              "WATER": current_state.world.water_index,
-              "GEM": current_state.world.stone_index,
-              # Add more mappings as necessary
-          }
-          return tool_map.get(kind_name, None)
+      # Check neighbors (UP, DOWN, LEFT, RIGHT)
+      for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        neighbor_pos = tuple(np.array(current_pos) + np.array([dx, dy]))
+        if 0 <= neighbor_pos[0] < grid.shape[0] and 0 <= neighbor_pos[1] < grid.shape[1]:
+          if neighbor_pos not in visited:
+            queue.append(neighbor_pos)
+            parent[tuple(neighbor_pos)] = current_pos
 
-      priority_queue = []
-      heapq.heappush(priority_queue, (0, start_pos[0], start_pos[1], []))
-      visited = set()
+    return None
+
+  def use_tool_if_needed(path, primitive_index):
+    inventory = env._current_state.inventory
+    actions = []
+    
+    for i in range(len(path) - 1):
+      # Determine the direction of movement
+      dx, dy = path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]
       
-      while priority_queue:
-          _, x, y, path = heapq.heappop(priority_queue)
-          
-          if (x, y) in visited:
-              continue
-          visited.add((x, y))
-          
-          # Check if target is found
-          if grid[x, y, target_kind] == 1:
-              return path + [(x, y)]
-          
-          for dx, dy in directions:
-              nx, ny = x + dx, y + dy
-              
-              if can_move(nx, ny):
-                  heapq.heappush(priority_queue, (heuristic((nx, ny), start_pos) + len(path) + 1, nx, ny, path + [(nx, ny)]))
-      return None
+      if (dx, dy) != (0, 0):
+        action = directions.get((dx, dy))
+        if action is not None:
+          actions.append(action)
+
+      # Check the next cell for any tools needed
+      next_cell_index = env._current_state.grid[path[i + 1][0], path[i + 1][1]].argmax()
+
+      # Use BRIDGE to cross WATER if needed and available
+      if (next_cell_index == env.world.cookbook.index['WATER'] or 
+          primitive_index == env.world.cookbook.index['WATER']) and inventory[env.world.cookbook.index['BRIDGE']] > 0:
+        actions.append(craft.CRAFT_FUNC(env.world.cookbook.index['BRIDGE']))
+        actions.append(craft.USE)
+
+      # Use PICKAXE to mine GEM if needed and available
+      elif (next_cell_index == env.world.cookbook.index['GEM'] or 
+            primitive_index == env.world.cookbook.index['GEM']) and inventory[env.world.cookbook.index['PICKAXE']] > 0:
+        actions.append(craft.CRAFT_FUNC(env.world.cookbook.index['PICKAXE']))
+        actions.append(craft.USE)
+
+    return actions
+
+  primitive_index = env.world.cookbook.index[primitive]
+
+  if primitive_index not in env.world.grabbable_indices:
+    raise ValueError(f"Primitive {primitive} cannot be grabbed.")
+
+  # Find the position of the primitive in the grid
+  grid = env._current_state.grid
+  positions = np.argwhere(grid[:, :, primitive_index] > 0)
+
+  if len(positions) == 0:
+    raise ValueError(f"No instances of {primitive} found in the environment.")
 
   actions = []
-  current_state = env._current_state
-  grid = current_state.grid.copy()
-  pos = current_state.pos
-  inventory = current_state.inventory.copy()
+  start_pos = env._current_state.pos
 
-  # Map primitive names to their respective indices in the index list
-  primitives_index = current_state.world.cookbook.index.index(primitive)
+  # Sort targets based on proximity to start position
+  sorted_positions = sorted(map(tuple, positions), key=lambda pos: np.linalg.norm(np.array(pos) - np.array(start_pos)))
 
-  # Find the shortest path to a cell containing the target kind
-  path_to_primitive = find_shortest_path(grid, pos, primitives_index, inventory)
-  if path_to_primitive:
-      for (x, y) in path_to_primitive[:-1]:  # Exclude the last position since we'll use there
-          dx, dy = x - pos[0], y - pos[1]
-          current_direction = current_state.dir
-          
-          if dx == 0 and dy < 0:  # UP
-              target_direction = 0
-          elif dx == 0 and dy > 0:  # DOWN
-              target_direction = 1
-          elif dx < 0 and dy == 0:  # LEFT
-              target_direction = 2
-          elif dx > 0 and dy == 0:  # RIGHT
-              target_direction = 3
+  for target in sorted_positions:
+    path = find_shortest_path(start_pos, set([target]))
 
-          if current_direction != target_direction:
-              actions.append(target_direction)  # Add action to change direction
+    if path is None:
+      continue
 
-          pos = (x, y)
-          actions.append(ACTION_MAP["USE"])
+    directions = {
+        (-1, 0): craft.LEFT,
+        (1, 0): craft.RIGHT,
+        (0, -1): craft.DOWN,
+        (0, 1): craft.UP
+    }
 
-      # Collect the primitive at the last position
-      dx, dy = path_to_primitive[-1][0] - pos[0], path_to_primitive[-1][1] - pos[1]
-      if dx == 0 and dy < 0:  # UP
-          target_direction = 0
-      elif dx == 0 and dy > 0:  # DOWN
-          target_direction = 1
-      elif dx < 0 and dy == 0:  # LEFT
-          target_direction = 2
-      elif dx > 0 and dy == 0:  # RIGHT
-          target_direction = 3
+    actions.extend(use_tool_if_needed(path, primitive_index))
 
-      if current_state.dir != target_direction:
-          actions.append(target_direction)  # Add action to change direction
+    # Add the USE action to collect the primitive
+    actions.append(craft.USE)
 
-      actions.append(ACTION_MAP["USE"])
+    # Update start position for next target
+    start_pos = path[-1]
+
+  if not actions:
+    raise ValueError(f"No path found to any instances of {primitive}.")
 
   return actions
 
