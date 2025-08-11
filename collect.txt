@@ -83,8 +83,10 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   """ 
 
   #this is how the action list returned from this function will be used during eval
+  #do not change the code block below 
   action_list = [] 
   reward = 0
+  state = env._current_state
   for a in action_list:
       r, state = env.step(state, a)
       reward += r
