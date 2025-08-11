@@ -325,15 +325,6 @@ primitive ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOO
 do ::= then task
 """
 
-When coming up with the code understand that processing of the action list returned by the function will be handeled on the DSL interpreter using something like below ->
-
-  actions_to_take = collect(env, primitive)
-  for t in range(len(actions_to_take)):
-    action = actions_to_take[t]
-    reward, done, observations = env.step(action)
-    total_reward += reward
-    if done:
-      break
 
 '''
 

@@ -1,7 +1,7 @@
 def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
   #primitive = "wood"
-  actions_to_take = collect(env, primitive)
+  state, reward, actions_to_take = collect(env, primitive)
 
   observations = env.reset()
   total_reward = 0.0
@@ -13,7 +13,7 @@ def solve(env, primitive, visualise=False) -> float:
     if done:
       break
   if total_reward > 0.5:
-    return 0.5
+    return 0.3
   return total_reward
 
 @funsearch.run
@@ -63,7 +63,7 @@ def evaluate() -> float:
 
 @funsearch.evolve
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory.
+  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory. Do not pick up primitives that are not passed as the argument.
 
   This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
   It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
@@ -81,4 +81,12 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to collect the primitive.
   """ 
-  return []
+
+  #this is how the action list returned from this function will be used during eval
+  action_list = [] 
+  reward = 0
+  for a in action_list:
+      r, state = env.step(state, a)
+      reward += r
+
+  return state, reward, action_list
