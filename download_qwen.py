@@ -8,7 +8,7 @@ scratch_dir = "/scratch/avani/qwen"
 os.makedirs(scratch_dir, exist_ok=True)
 
 snapshot_download(
-    repo_id="Qwen/Qwen2.5-Coder-32B",
+    repo_id="Qwen/Qwen3-Coder-30B-A3B-Instruct",
     local_dir=scratch_dir,
     local_dir_use_symlinks=False  # avoids symlinks, useful for portability
 )
