@@ -325,15 +325,6 @@ primitive ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOO
 do ::= then task
 """
 
-When coming up with the code understand that processing of the action list returned by the function will be handeled on the DSL interpreter using something like below ->
-
-  actions_to_take = collect(env, primitive)
-  for t in range(len(actions_to_take)):
-    action = actions_to_take[t]
-    reward, done, observations = env.step(action)
-    total_reward += reward
-    if done:
-      break
 
 '''
 
@@ -345,7 +336,7 @@ import craft
 import env
 def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
-  actions_to_take = collect(env, primitive)
+  state, reward, actions_to_take = collect(env, primitive)
 
   observations = env.reset()
   total_reward = 0.0
@@ -357,7 +348,7 @@ def solve(env, primitive, visualise=False) -> float:
     if done:
       break
   if total_reward > 0.5:
-    return 0.5
+    return 0.3
   return total_reward
 
 
@@ -407,7 +398,7 @@ def evaluate() -> float:
 
 
 def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory.
+  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory. Do not pick up primitives that are not passed as the argument.
 
   This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
   It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
@@ -425,108 +416,82 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  def find_shortest_path(start, targets):
-    grid = env._current_state.grid
-    queue = collections.deque([start])
-    visited = set()
-    parent = {tuple(start): None}
+  MAX_STEPS = 200
+  UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
 
-    while queue:
-      current_pos = queue.popleft()
+  action_list = []
+  state = env._current_state
+  target_index = state.world.cookbook.index[primitive]
 
-      if tuple(current_pos) in targets:
-        path = []
-        while current_pos is not None:
-          path.append(current_pos)
-          current_pos = parent[tuple(current_pos)]
-        path.reverse()
-        return path
+  # Priority queue for BFS (position, steps, inventory, actions)
+  queue = collections.deque([(state.pos, 0, np.copy(state.inventory), [])])
+  visited = set()
 
-      visited.add(tuple(current_pos))
+  while queue:
+      pos, steps, inv, actions = queue.popleft()
 
-      # Check neighbors (UP, DOWN, LEFT, RIGHT)
-      for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        neighbor_pos = tuple(np.array(current_pos) + np.array([dx, dy]))
-        if 0 <= neighbor_pos[0] < grid.shape[0] and 0 <= neighbor_pos[1] < grid.shape[1]:
-          if neighbor_pos not in visited:
-            queue.append(neighbor_pos)
-            parent[tuple(neighbor_pos)] = current_pos
+      if steps >= MAX_STEPS:
+          continue
 
-    return None
+      # Check if the position and inventory have been visited
+      state_key = (tuple(pos), tuple(inv))
+      if state_key in visited:
+          continue
+      visited.add(state_key)
 
-  def use_tool_if_needed(path, primitive_index):
-    inventory = env._current_state.inventory
-    actions = []
-    
-    for i in range(len(path) - 1):
-      # Determine the direction of movement
-      dx, dy = path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]
-      
-      if (dx, dy) != (0, 0):
-        action = directions.get((dx, dy))
-        if action is not None:
-          actions.append(action)
+      # Create a new state object for the current BFS step
+      state = craft.CraftState(
+          scenario=state.scenario,
+          grid=np.copy(state.grid),
+          pos=pos,
+          dir=state.dir,
+          inventory=np.copy(inv)
+      )
 
-      # Check the next cell for any tools needed
-      next_cell_index = env._current_state.grid[path[i + 1][0], path[i + 1][1]].argmax()
+      # Check if the target primitive is next to the agent
+      if state.next_to(target_index):
+          action_list = actions + [USE]
+          return action_list, 0, action_list
 
-      # Use BRIDGE to cross WATER if needed and available
-      if (next_cell_index == env.world.cookbook.index['WATER'] or 
-          primitive_index == env.world.cookbook.index['WATER']) and inventory[env.world.cookbook.index['BRIDGE']] > 0:
-        actions.append(craft.CRAFT_FUNC(env.world.cookbook.index['BRIDGE']))
-        actions.append(craft.USE)
+      # Generate possible moves and use of tools
+      new_positions = [
+          (pos[0], pos[1] - 1),  # UP
+          (pos[0], pos[1] + 1),  # DOWN
+          (pos[0] - 1, pos[1]),  # LEFT
+          (pos[0] + 1, pos[1])   # RIGHT
+      ]
 
-      # Use PICKAXE to mine GEM if needed and available
-      elif (next_cell_index == env.world.cookbook.index['GEM'] or 
-            primitive_index == env.world.cookbook.index['GEM']) and inventory[env.world.cookbook.index['PICKAXE']] > 0:
-        actions.append(craft.CRAFT_FUNC(env.world.cookbook.index['PICKAXE']))
-        actions.append(craft.USE)
+      for i, new_pos in enumerate(new_positions):
+          if 0 <= new_pos[0] < state.grid.shape[0] and 0 <= new_pos[1] < state.grid.shape[1]:
+              cell_index = np.argmax(state.grid[new_pos])
+              if cell_index not in state.world.non_grabbable_indices:
+                  queue.append((new_pos, steps + 1, inv, actions + [i]))
 
-    return actions
+      # Check for tool usage
+      inventory_items = np.where(inv > 0)[0]
+      for item_idx in inventory_items:
+          tool_name = state.world.cookbook.index.get(item_idx)
+          if not tool_name:
+              continue
 
-  primitive_index = env.world.cookbook.index[primitive]
+          adjacent_cells = [
+              (pos[0], pos[1] - 1),  # UP
+              (pos[0], pos[1] + 1),  # DOWN
+              (pos[0] - 1, pos[1]),  # LEFT
+              (pos[0] + 1, pos[1])   # RIGHT
+          ]
+          for adj_pos in adjacent_cells:
+              if 0 <= adj_pos[0] < state.grid.shape[0] and 0 <= adj_pos[1] < state.grid.shape[1]:
+                  cell_index = np.argmax(state.grid[adj_pos])
+                  if (tool_name == 'BRIDGE' and cell_index == state.world.cookbook.index['WATER'] and primitive == 'GOLD') or\
+                     (tool_name == 'PICKAXE' and cell_index == state.world.cookbook.index['ROCK'] and primitive in ['GEM', 'STONE']) or\
+                     (tool_name in ['AXE', 'SHOVEL'] and cell_index == state.world.cookbook.index['TREE'] and primitive == 'WOOD'):
+                      new_inv = inv.copy()
+                      new_inv[item_idx] -= 1  # Consume the tool
+                      queue.append((adj_pos, steps + 2, new_inv, actions + [USE]))
+                      break
 
-  if primitive_index not in env.world.grabbable_indices:
-    raise ValueError(f"Primitive {primitive} cannot be grabbed.")
-
-  # Find the position of the primitive in the grid
-  grid = env._current_state.grid
-  positions = np.argwhere(grid[:, :, primitive_index] > 0)
-
-  if len(positions) == 0:
-    raise ValueError(f"No instances of {primitive} found in the environment.")
-
-  actions = []
-  start_pos = env._current_state.pos
-
-  # Sort targets based on proximity to start position
-  sorted_positions = sorted(map(tuple, positions), key=lambda pos: np.linalg.norm(np.array(pos) - np.array(start_pos)))
-
-  for target in sorted_positions:
-    path = find_shortest_path(start_pos, set([target]))
-
-    if path is None:
-      continue
-
-    directions = {
-        (-1, 0): craft.LEFT,
-        (1, 0): craft.RIGHT,
-        (0, -1): craft.DOWN,
-        (0, 1): craft.UP
-    }
-
-    actions.extend(use_tool_if_needed(path, primitive_index))
-
-    # Add the USE action to collect the primitive
-    actions.append(craft.USE)
-
-    # Update start position for next target
-    start_pos = path[-1]
-
-  if not actions:
-    raise ValueError(f"No path found to any instances of {primitive}.")
-
-  return actions
+  return [], -1, []  # Return empty list and negative reward if target is unreachable
 
  
 print(evaluate())
