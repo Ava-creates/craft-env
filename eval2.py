@@ -11,18 +11,12 @@ def solve(env, primitive, visualise=False) -> float:
   #primitive = "wood"
   state, reward, actions_to_take = collect(env, primitive)
   print(actions_to_take)
-  observations = env.reset()
   total_reward = 0.0
-
   for t in range(len(actions_to_take)):
     action = actions_to_take[t]
     reward, done, observations = env.step(action)
     total_reward += reward
-    if done:
-      break
-  if total_reward > 0.5:
-    return 0.3
-  print(total_reward)
+  print("total reward", total_reward)
   return total_reward
 
 def evaluate() -> float:
@@ -39,7 +33,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
-        
+      env.reset()
       reward += solve(env, primitive,  visualise=visualise)
 
     elif(i==1):
@@ -49,7 +43,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
-        
+      env.reset()
       reward += solve(env, primitive, visualise=visualise)
 
     else:
@@ -59,6 +53,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
+      env.reset()
       env.step(1)
       env.step(4)
       env.step(1)
@@ -72,7 +67,7 @@ def evaluate() -> float:
 
 # @funsearch.evolve
 def collect(env, primitive) -> list[int]:
-    MAX_STEPS = 100
+    MAX_STEPS = 40
     UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
 
     action_list = []
@@ -82,10 +77,10 @@ def collect(env, primitive) -> list[int]:
     # Priority queue for BFS (position, steps, inventory, actions)
     queue = collections.deque([(state.pos, 0, np.copy(state.inventory), [])])
     visited = set()
-
+    print(state.pos)
     while queue:
         pos, steps, inv, actions = queue.popleft()
-
+        # print(pos, steps, actions)
         if steps >= MAX_STEPS:
             continue
 
@@ -104,7 +99,7 @@ def collect(env, primitive) -> list[int]:
             inventory=np.copy(inv)
         )
 
-        # Check if the target primitive is next to the agent
+        # # Check if the target primitive is next to the agent
         adjacent_cells = [
             (pos[0], pos[1] - 1),  # UP
             (pos[0], pos[1] + 1),  # DOWN
@@ -112,9 +107,11 @@ def collect(env, primitive) -> list[int]:
             (pos[0] + 1, pos[1])   # RIGHT
         ]
 
+
         for adj_pos in adjacent_cells:
             if 0 <= adj_pos[0] < state.grid.shape[0] and 0 <= adj_pos[1] < state.grid.shape[1]:
                 cell_index = np.argmax(state.grid[adj_pos])
+
                 if cell_index == target_index:
                     action_list = actions + [UP, USE] if adj_pos[1] < pos[1] else\
                                 actions + [DOWN, USE] if adj_pos[1] > pos[1] else\
@@ -130,10 +127,13 @@ def collect(env, primitive) -> list[int]:
                     queue.append((new_pos, steps + 1, inv, actions + [i]))
 
         # Check for tool usage
+        # print(inv)
         inventory_items = np.where(inv > 0)[0]
+        # print(inventory_items)
         for item_idx in inventory_items:
+
             tool_usage_conditions = {
-                'GOLD': ('BRIDGE', 'WATER'),
+                'gold': ('bridge', 'water'),
                 'GEM': ('PICKAXE', 'ROCK'),
                 'TREE': ('AXE', 'TREE'),
                 'BOULDER': ('HAMMER', 'BOULDER'),
@@ -143,15 +143,16 @@ def collect(env, primitive) -> list[int]:
             }
 
             if primitive in tool_usage_conditions:
+
                 required_tool, target_resource = tool_usage_conditions[primitive]
+                # print("bridge index", state.world.cookbook.index[required_tool])
                 if item_idx == state.world.cookbook.index[required_tool]:
-                    for adj_pos in adjacent_cells:
+                    for dir_idx, adj_pos in enumerate(adjacent_cells):
                         if 0 <= adj_pos[0] < state.grid.shape[0] and 0 <= adj_pos[1] < state.grid.shape[1]:
                             cell_index = np.argmax(state.grid[adj_pos])
                             if cell_index == state.world.cookbook.index[target_resource]:
                                 new_inv = inv.copy()
-                                new_inv[item_idx] -= 1
-                                queue.append((adj_pos, steps + 2, new_inv, actions + [USE]))
+                                queue.append((adj_pos, steps + 2, new_inv, actions + [dir_idx, USE]))
 
     return [], -1, []  # Return empty list and negative reward if target is unreachable
 

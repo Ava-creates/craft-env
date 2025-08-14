@@ -2,8 +2,6 @@ def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
   #primitive = "wood"
   state, reward, actions_to_take = collect(env, primitive)
-
-  observations = env.reset()
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -31,7 +29,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
-        
+      env.reset()
       reward += solve(env, primitive,  visualise=visualise)
 
     elif(i==1):
@@ -41,7 +39,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
-        
+      env.reset()
       reward += solve(env, primitive, visualise=visualise)
 
     else:
@@ -51,6 +49,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
+      env.reset()
       env.step(1)
       env.step(4)
       env.step(1)
@@ -59,6 +58,7 @@ def evaluate() -> float:
       env.step(1)
       env.step(4)
       reward += solve(env, primitive, visualise=visualise)
+
   return reward
 
 @funsearch.evolve
