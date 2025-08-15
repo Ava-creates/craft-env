@@ -337,8 +337,6 @@ import env
 def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
   state, reward, actions_to_take = collect(env, primitive)
-
-  observations = env.reset()
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -366,7 +364,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
-        
+      env.reset()
       reward += solve(env, primitive,  visualise=visualise)
 
     elif(i==1):
@@ -376,7 +374,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
-        
+      env.reset()
       reward += solve(env, primitive, visualise=visualise)
 
     else:
@@ -386,6 +384,7 @@ def evaluate() -> float:
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
+      env.reset()
       env.step(1)
       env.step(4)
       env.step(1)
@@ -394,6 +393,7 @@ def evaluate() -> float:
       env.step(1)
       env.step(4)
       reward += solve(env, primitive, visualise=visualise)
+
   return reward
 
 
@@ -416,82 +416,69 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  MAX_STEPS = 200
-  UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
-
-  action_list = []
-  state = env._current_state
-  target_index = state.world.cookbook.index[primitive]
-
-  # Priority queue for BFS (position, steps, inventory, actions)
-  queue = collections.deque([(state.pos, 0, np.copy(state.inventory), [])])
+  # Get the index of the target primitive
+  target_primitive_index = env.world.cookbook.index(primitive)
+  
+  # Initialize the queue for BFS and a set to keep track of visited positions
+  q = collections.deque([(state.pos, state.dir, [])])  # (position, direction, path_taken)
   visited = set()
-
-  while queue:
-      pos, steps, inv, actions = queue.popleft()
-
-      if steps >= MAX_STEPS:
-          continue
-
-      # Check if the position and inventory have been visited
-      state_key = (tuple(pos), tuple(inv))
-      if state_key in visited:
-          continue
-      visited.add(state_key)
-
-      # Create a new state object for the current BFS step
-      state = craft.CraftState(
-          scenario=state.scenario,
-          grid=np.copy(state.grid),
-          pos=pos,
-          dir=state.dir,
-          inventory=np.copy(inv)
-      )
-
+  visited.add((state.pos, state.dir))
+  
+  while q:
+      current_pos, current_dir, path_taken = q.popleft()
+      
+      # Get the current state
+      current_state = CraftState(scenario=env.scenario, grid=state.grid.copy(), pos=current_pos, dir=current_dir, inventory=state.inventory.copy())
+      
       # Check if the target primitive is next to the agent
-      if state.next_to(target_index):
-          action_list = actions + [USE]
-          return action_list, 0, action_list
-
-      # Generate possible moves and use of tools
-      new_positions = [
-          (pos[0], pos[1] - 1),  # UP
-          (pos[0], pos[1] + 1),  # DOWN
-          (pos[0] - 1, pos[1]),  # LEFT
-          (pos[0] + 1, pos[1])   # RIGHT
-      ]
-
-      for i, new_pos in enumerate(new_positions):
-          if 0 <= new_pos[0] < state.grid.shape[0] and 0 <= new_pos[1] < state.grid.shape[1]:
-              cell_index = np.argmax(state.grid[new_pos])
-              if cell_index not in state.world.non_grabbable_indices:
-                  queue.append((new_pos, steps + 1, inv, actions + [i]))
-
-      # Check for tool usage
-      inventory_items = np.where(inv > 0)[0]
-      for item_idx in inventory_items:
-          tool_name = state.world.cookbook.index.get(item_idx)
-          if not tool_name:
-              continue
-
-          adjacent_cells = [
-              (pos[0], pos[1] - 1),  # UP
-              (pos[0], pos[1] + 1),  # DOWN
-              (pos[0] - 1, pos[1]),  # LEFT
-              (pos[0] + 1, pos[1])   # RIGHT
-          ]
-          for adj_pos in adjacent_cells:
-              if 0 <= adj_pos[0] < state.grid.shape[0] and 0 <= adj_pos[1] < state.grid.shape[1]:
-                  cell_index = np.argmax(state.grid[adj_pos])
-                  if (tool_name == 'BRIDGE' and cell_index == state.world.cookbook.index['WATER'] and primitive == 'GOLD') or\
-                     (tool_name == 'PICKAXE' and cell_index == state.world.cookbook.index['ROCK'] and primitive in ['GEM', 'STONE']) or\
-                     (tool_name in ['AXE', 'SHOVEL'] and cell_index == state.world.cookbook.index['TREE'] and primitive == 'WOOD'):
-                      new_inv = inv.copy()
-                      new_inv[item_idx] -= 1  # Consume the tool
-                      queue.append((adj_pos, steps + 2, new_inv, actions + [USE]))
-                      break
-
-  return [], -1, []  # Return empty list and negative reward if target is unreachable
+      if current_state.next_to(target_primitive_index):
+          # Collect the primitive and return the path taken
+          action_list = path_taken + [env.action_specs()[USE]]
+          state, reward, _ = env.step(action_list)
+          return state, reward, action_list
+      
+      # Try moving in all four directions
+      for direction_name, action_id in env.action_specs().items():
+          if direction_name == USE:
+              continue  # Skip the USE action since we are only trying to move
+          
+          new_pos = current_state.pos
+          new_dir = current_state.dir
+          
+          if direction_name == DOWN:
+              new_pos = (current_pos[0], current_pos[1] + 1)
+          elif direction_name == UP:
+              new_pos = (current_pos[0], current_pos[1] - 1)
+          elif direction_name == LEFT:
+              new_pos = (current_pos[0] - 1, current_pos[1])
+          elif direction_name == RIGHT:
+              new_pos = (current_pos[0] + 1, current_pos[1])
+          
+          # Check if the new position is within bounds and not visited
+          if (new_pos[0] >= 0 and new_pos[0] < state.grid.shape[0] and
+              new_pos[1] >= 0 and new_pos[1] < state.grid.shape[1]):
+              
+              # Add the move action to the path taken
+              new_path = path_taken + [action_id]
+              
+              # Add the new position to the queue if it hasn't been visited
+              if (new_pos, current_dir) not in visited:
+                  q.append((new_pos, current_dir, new_path))
+                  visited.add((new_pos, current_dir))
+      
+      # Try turning around
+      for turn_action_id in [env.action_specs()[LEFT], env.action_specs()[RIGHT]]:
+          new_dir = (current_state.dir + 1) % 4 if action_id == env.action_specs()[LEFT] else (current_state.dir - 1) % 4
+          
+          # Add the turn action to the path taken
+          new_path = path_taken + [turn_action_id]
+          
+          # Add the new direction to the queue if it hasn't been visited
+          if (current_pos, new_dir) not in visited:
+              q.append((current_pos, new_dir, new_path))
+              visited.add((current_pos, new_dir))
+  
+  return state, reward, action_list
 
  
 print(evaluate())
