@@ -325,6 +325,15 @@ primitive ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOO
 do ::= then task
 """
 
+When coming up with the code understand that processing of the action list returned by the function will be handeled on the DSL interpreter using something like below ->
+
+  actions_to_take = collect(env, primitive)
+  for t in range(len(actions_to_take)):
+    action = actions_to_take[t]
+    reward, done, observations = env.step(action)
+    total_reward += reward
+    if done:
+      break
 
 '''
 
@@ -336,7 +345,7 @@ import craft
 import env
 def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
-  state, reward, actions_to_take = collect(env, primitive)
+  actions_to_take = collect(env, primitive)
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -416,69 +425,61 @@ def collect(env: env.CraftLab, primitive: str) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  # Get the index of the target primitive
-  target_primitive_index = env.world.cookbook.index(primitive)
-  
-  # Initialize the queue for BFS and a set to keep track of visited positions
-  q = collections.deque([(state.pos, state.dir, [])])  # (position, direction, path_taken)
+  primitive_index = env.world.cookbook.index[primitive]
+  assert primitive_index is not None, f"Primitive '{primitive}' not found in cookbook"
+
+  # If we already have it, return empty list
+  if env._current_state.inventory[primitive_index] > 0:
+      return []
+
+  # Find all locations where this primitive is available
+  locations = []
+  for x in range(env._current_state.grid.shape[0]):
+      for y in range(env._current_state.grid.shape[1]):
+          if env._current_state.grid[x, y, primitive_index] > 0:
+              locations.append((x, y))
+
+  # If no locations found, return empty list (can't collect)
+  if not locations:
+      return []
+
+  # Use BFS to find the shortest path
+  from collections import deque
+
+  queue = deque([(env._current_state.pos[0], env._current_state.pos[1], [])])  # (x, y, actions_list)
   visited = set()
-  visited.add((state.pos, state.dir))
+  visited.add(env._current_state.pos)
+
+  while queue:
+      x, y, actions = queue.popleft()
+
+      if (x, y) in locations:
+          return actions
+
+      # Check all 4 directions
+      for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+          nx, ny = x + dx, y + dy
+          
+          # Check bounds
+          if not (0 <= nx < env._current_state.grid.shape[0] and 0 <= ny < env._current_state.grid.shape[1]):
+              continue
+
+          # Check if already visited
+          if (nx, ny) in visited:
+              continue
+
+          # Check if we can move to this cell
+          cell_kind = np.argmax(env._current_state.grid[nx, ny])
+          if cell_kind != 0 and cell_kind != primitive_index:
+              # This cell is occupied by something else
+              # We need to see if we can use our inventory to pass through
+              continue
+
+          visited.add((nx, ny))
+          queue.append((nx, ny, actions + [env.action_specs()['DOWN' if dx == 1 else 'UP' if dx == -1 else 'RIGHT' if dy == 1 else 'LEFT']]))
   
-  while q:
-      current_pos, current_dir, path_taken = q.popleft()
-      
-      # Get the current state
-      current_state = CraftState(scenario=env.scenario, grid=state.grid.copy(), pos=current_pos, dir=current_dir, inventory=state.inventory.copy())
-      
-      # Check if the target primitive is next to the agent
-      if current_state.next_to(target_primitive_index):
-          # Collect the primitive and return the path taken
-          action_list = path_taken + [env.action_specs()[USE]]
-          state, reward, _ = env.step(action_list)
-          return state, reward, action_list
-      
-      # Try moving in all four directions
-      for direction_name, action_id in env.action_specs().items():
-          if direction_name == USE:
-              continue  # Skip the USE action since we are only trying to move
-          
-          new_pos = current_state.pos
-          new_dir = current_state.dir
-          
-          if direction_name == DOWN:
-              new_pos = (current_pos[0], current_pos[1] + 1)
-          elif direction_name == UP:
-              new_pos = (current_pos[0], current_pos[1] - 1)
-          elif direction_name == LEFT:
-              new_pos = (current_pos[0] - 1, current_pos[1])
-          elif direction_name == RIGHT:
-              new_pos = (current_pos[0] + 1, current_pos[1])
-          
-          # Check if the new position is within bounds and not visited
-          if (new_pos[0] >= 0 and new_pos[0] < state.grid.shape[0] and
-              new_pos[1] >= 0 and new_pos[1] < state.grid.shape[1]):
-              
-              # Add the move action to the path taken
-              new_path = path_taken + [action_id]
-              
-              # Add the new position to the queue if it hasn't been visited
-              if (new_pos, current_dir) not in visited:
-                  q.append((new_pos, current_dir, new_path))
-                  visited.add((new_pos, current_dir))
-      
-      # Try turning around
-      for turn_action_id in [env.action_specs()[LEFT], env.action_specs()[RIGHT]]:
-          new_dir = (current_state.dir + 1) % 4 if action_id == env.action_specs()[LEFT] else (current_state.dir - 1) % 4
-          
-          # Add the turn action to the path taken
-          new_path = path_taken + [turn_action_id]
-          
-          # Add the new direction to the queue if it hasn't been visited
-          if (current_pos, new_dir) not in visited:
-              q.append((current_pos, new_dir, new_path))
-              visited.add((current_pos, new_dir))
-  
-  return state, reward, action_list
+  # If no path found, return empty list
+  return []
 
  
 print(evaluate())

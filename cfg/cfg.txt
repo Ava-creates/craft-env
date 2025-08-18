@@ -1,5 +1,5 @@
 s ::= task SEMI s | task SEMI
-task ::= move | craft | ifhas do
+task ::=move  | craft | ifhas do
 move ::= MOVE_FUNC LPAR dir RPAR
 dir ::= UP | DOWN | LEFT | RIGHT
 craft ::= CRAFT_FUNC LPAR item RPAR
