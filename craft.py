@@ -86,9 +86,17 @@ class CraftWorld(object):
       raise ValueError("Don't know how to build a scenario for %s" % goal)
     s = 0
     if self.env_type == 0:
-      s = self.sample_scenario_simple(make_island=make_island, make_cave=make_cave)
+      s = self.sample_scenario_stick(make_island=make_island, make_cave=make_cave)
     elif self.env_type == 1:
-      s = self.sample_scenario_medium(make_island=make_island, make_cave=make_cave)
+      s = self.sample_scenario_bridge(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 2:
+      s = self.sample_scenario_plank(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 3:
+      s = self.sample_scenario_cloth(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 4:
+      s = self.sample_scenario_rope(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 5:
+      s = self.sample_scenario_bundle(make_island=make_island, make_cave=make_cave)
     else:
       s = self.sample_scenario_hard(make_island=make_island, make_cave=make_cave)
     return s
@@ -135,7 +143,7 @@ class CraftWorld(object):
 
     return CraftScenario(grid, init_pos, self)
 
-  def sample_scenario_simple(self, make_island=False, make_cave=False):
+  def sample_scenario_stick(self, make_island=False, make_cave=False):
         # Create empty grid
         grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
         
@@ -159,7 +167,7 @@ class CraftWorld(object):
         
         return CraftScenario(grid, init_pos, self)
 
-  def sample_scenario_medium(self, make_island=False, make_cave=False):
+  def sample_scenario_bridge(self, make_island=False, make_cave=False):
         # to make bridge 
         grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
         
@@ -182,6 +190,98 @@ class CraftWorld(object):
 
         workshop1_index = self.cookbook.index["workshop2"]
         grid[7, 7, workshop1_index] = 1
+        
+        return CraftScenario(grid, init_pos, self)
+
+  def sample_scenario_plank(self, make_island=False, make_cave=False):
+        # to make bridge 
+        grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+        
+        # Add boundary
+        i_bd = self.cookbook.index["boundary"]
+        grid[0, :, i_bd] = 1
+        grid[WIDTH - 1:, :, i_bd] = 1
+        grid[:, 0, i_bd] = 1
+        grid[:, HEIGHT - 1:, i_bd] = 1
+        
+        # Place agent at (5,5)
+        init_pos = (5, 5)
+        
+        # Place wood at (5,6) - right next to agent
+        wood_index = self.cookbook.index["wood"]
+        grid[5, 6, wood_index] = 1
+
+        workshop1_index = self.cookbook.index["workshop0"]
+        grid[7, 7, workshop1_index] = 1
+        
+        return CraftScenario(grid, init_pos, self)
+
+  def sample_scenario_cloth(self, make_island=False, make_cave=False):
+        # to make bridge 
+        grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+        
+        # Add boundary
+        i_bd = self.cookbook.index["boundary"]
+        grid[0, :, i_bd] = 1
+        grid[WIDTH - 1:, :, i_bd] = 1
+        grid[:, 0, i_bd] = 1
+        grid[:, HEIGHT - 1:, i_bd] = 1
+        
+        # Place agent at (5,5)
+        init_pos = (5, 5)
+        
+        # Place wood at (5,6) - right next to agent
+        wood_index = self.cookbook.index["grass"]
+        grid[5, 6, wood_index] = 1
+
+        workshop1_index = self.cookbook.index["workshop2"]
+        grid[6, 4, workshop1_index] = 1
+        
+        return CraftScenario(grid, init_pos, self)
+
+  def sample_scenario_rope(self, make_island=False, make_cave=False):
+        # to make bridge 
+        grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+        # Add boundary
+        i_bd = self.cookbook.index["boundary"]
+        grid[0, :, i_bd] = 1
+        grid[WIDTH - 1:, :, i_bd] = 1
+        grid[:, 0, i_bd] = 1
+        grid[:, HEIGHT - 1:, i_bd] = 1
+        
+        # Place agent at (5,5)
+        init_pos = (4, 4)
+        
+        # Place wood at (5,6) - right next to agent
+        wood_index = self.cookbook.index["grass"]
+        grid[4, 2, wood_index] = 1
+
+        workshop1_index = self.cookbook.index["workshop0"]
+        grid[8, 8, workshop1_index] = 1
+        
+        return CraftScenario(grid, init_pos, self)
+
+  def sample_scenario_bundle(self, make_island=False, make_cave=False):
+        # to make bridge 
+        grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+        # Add boundary
+        i_bd = self.cookbook.index["boundary"]
+        grid[0, :, i_bd] = 1
+        grid[WIDTH - 1:, :, i_bd] = 1
+        grid[:, 0, i_bd] = 1
+        grid[:, HEIGHT - 1:, i_bd] = 1
+        
+        # Place agent at (5,5)
+        init_pos = (4, 4)
+        
+        grass_index = self.cookbook.index["grass"]
+        grid[4, 2, grass_index] = 1
+
+        wood_index = self.cookbook.index["wood"]
+        grid[4, 1, wood_index] = 1
+
+        workshop1_index = self.cookbook.index["workshop0"]
+        grid[8, 8, workshop1_index] = 1
         
         return CraftScenario(grid, init_pos, self)
 
@@ -210,7 +310,7 @@ class CraftWorld(object):
         grid[5,9, workshop1_index] = 1
 
         
-        (gx, gy) = (6,1)
+        (gx, gy) = (6,1) #
         treasure_index = self.cookbook.index["gold"] 
         wall_index =  self.water_index 
         grid[gx, gy, treasure_index] = 1

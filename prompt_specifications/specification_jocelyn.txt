@@ -314,7 +314,7 @@ Data Attributes
 The following language is the domain-specific language that we designed to solve **any** task in this game. 
 """
 s ::= task SEMI s | task SEMI
-task ::= move | craft | ifhas do
+task ::= move | craft | collect | ifhas do
 move ::= MOVE_FUNC LPAR dir RPAR
 dir ::= UP | DOWN | LEFT | RIGHT
 craft ::= CRAFT_FUNC LPAR item RPAR

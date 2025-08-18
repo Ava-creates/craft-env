@@ -314,7 +314,7 @@ Data Attributes
 The following language is the domain-specific language that we designed to solve **any** task in this game. 
 """
 s ::= task SEMI s | task SEMI
-task ::= move | craft | ifhas do
+task ::= move | craft | collect | ifhas do
 move ::= MOVE_FUNC LPAR dir RPAR
 dir ::= UP | DOWN | LEFT | RIGHT
 craft ::= CRAFT_FUNC LPAR item RPAR
@@ -343,9 +343,9 @@ import collections
 import env_factory
 import craft
 import env
-def solve(env, primitive, visualise=False) -> float:
+def solve(env, item, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
-  actions_to_take = collect(env, primitive)
+  actions_to_take = craft(env, item)
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -354,8 +354,7 @@ def solve(env, primitive, visualise=False) -> float:
     total_reward += reward
     if done:
       break
-  if total_reward > 0.5:
-    return 0.3
+
   return total_reward
 
 
@@ -365,31 +364,128 @@ def evaluate() -> float:
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"
   reward = 0 
-  for i in range(3):
+  for i in range(10):
     if(i == 0):
-      primitive = "wood"
+      item = "stick"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
       env.reset()
-      reward += solve(env, primitive,  visualise=visualise)
-
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item,  visualise=visualise)
+    
     elif(i==1):
-      primitive = "iron"
+      item = "stick"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env.reset()
+      temp_reward = solve(env, item, visualise=visualise)
+      if temp_reward>0 :
+        reward -= 0.3
+      
+    elif(i==2):
+      item = "bridge"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      reward += solve(env, primitive, visualise=visualise)
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)
 
-    else:
-      primitive = "gold"
+    elif(i==3):
+      item = "bridge"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+      temp_reward = solve(env, item, visualise=visualise)
+      if temp_reward>0 :
+        reward -= 0.3
+
+    elif(i==4):
+      item = "plank"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[plank]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)
+
+    elif(i==5):
+      item = "cloth"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 3, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[cloth]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)
+
+
+    elif(i==6):
+      item = "rope"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 4, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[rope]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)
+
+    elif(i==7):
+      item = "bundle"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+      env.step(0)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)
+
+    elif(i==8):
+      item = "bundle"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+
+      temp_reward = solve(env, item, visualise=visualise)
+      if temp_reward>0 :
+        reward -= 0.3
+
+    else:
+      item = "goldarrow"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
@@ -401,85 +497,78 @@ def evaluate() -> float:
       env.step(1)
       env.step(1)
       env.step(4)
-      reward += solve(env, primitive, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)
 
   return reward
 
 
-def collect(env: env.CraftLab, primitive: str) -> list[int]:
-  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory. Do not pick up primitives that are not passed as the argument.
-
-  This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
-  It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
-  for example:
-    - Using a BRIDGE to cross WATER in order to reach GOLD.
-    - Using a PICKAXE to mine GEM.
-
-  The function assumes the world is static except for changes resulting from tool use (e.g., placing a bridge).
-  It does not perform crafting or attempt to acquire new items—only available tools in the inventory are used.
-
+def craft(env, item) -> list[int]:
+  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item and just needsto craft the item by going to the needed workshop. 
+  
   Args:
       env (env.CraftLab): The CraftLab environment instance.
-      primitive (str): The name of the primitive to collect.
+      item (str): The name of the item to craft.
 
   Returns:
-      List[int]: A list of action indices the agent can execute to collect the primitive.
+      List[int]: A list of action indices the agent can execute to craft the item.
   """
-  primitive_index = env.world.cookbook.index[primitive]
-  assert primitive_index is not None, f"Primitive '{primitive}' not found in cookbook"
+  actions = []
 
-  # If we already have it, return empty list
-  if env._current_state.inventory[primitive_index] > 0:
-      return []
-
-  # Find all locations where this primitive is available
-  locations = []
-  for x in range(env._current_state.grid.shape[0]):
-      for y in range(env._current_state.grid.shape[1]):
-          if env._current_state.grid[x, y, primitive_index] > 0:
-              locations.append((x, y))
-
-  # If no locations found, return empty list (can't collect)
-  if not locations:
-      return []
-
-  # Use BFS to find the shortest path
-  from collections import deque
-
-  queue = deque([(env._current_state.pos[0], env._current_state.pos[1], [])])  # (x, y, actions_list)
-  visited = set()
-  visited.add(env._current_state.pos)
-
-  while queue:
-      x, y, actions = queue.popleft()
-
-      if (x, y) in locations:
-          return actions
-
-      # Check all 4 directions
-      for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-          nx, ny = x + dx, y + dy
-          
-          # Check bounds
-          if not (0 <= nx < env._current_state.grid.shape[0] and 0 <= ny < env._current_state.grid.shape[1]):
-              continue
-
-          # Check if already visited
-          if (nx, ny) in visited:
-              continue
-
-          # Check if we can move to this cell
-          cell_kind = np.argmax(env._current_state.grid[nx, ny])
-          if cell_kind != 0 and cell_kind != primitive_index:
-              # This cell is occupied by something else
-              # We need to see if we can use our inventory to pass through
-              continue
-
-          visited.add((nx, ny))
-          queue.append((nx, ny, actions + [env.action_specs()['DOWN' if dx == 1 else 'UP' if dx == -1 else 'RIGHT' if dy == 1 else 'LEFT']]))
+  # Get the index for the desired item
+  item_index = env.world.cookbook.index[item]
   
-  # If no path found, return empty list
-  return []
+  # Check if the item can be crafted (i.e., has a recipe)
+  if item_index in env.world.cookbook.recipes:
+    # Find which workshop to use based on the available workshops and the required ingredients
+    for workshop_index in env.world.workshop_indices:
+      workshop = env.world.cookbook.index.get(workshop_index)
+
+      # Check if the workshop can be used for crafting the item
+      # For simplicity, let's assume there is a single type of workshop that can handle all crafting
+      # In practice, you would need to check the recipe requirements and match them with the workshop capabilities
+      if True:  # Placeholder condition
+        actions.append(env.world.cookbook.index["USE"])
+      
+    else:
+      # If no suitable workshop was found, return an empty list of actions
+      return []
+
+    # Move to the workshop
+    workshop_pos = (0, 0)  # Placeholder position for the workshop
+    current_pos = env._current_state.pos
+
+    while current_pos != workshop_pos:
+      direction_to_move = None
+      
+      # Simple heuristic to move towards the workshop
+      if current_pos[0] < workshop_pos[0]:
+        actions.append(env.world.cookbook.index["RIGHT"])
+        direction_to_move = "RIGHT"
+      elif current_pos[0] > workshop_pos[0]:
+        actions.append(env.world.cookbook.index["LEFT"])
+        direction_to_move = "LEFT"
+      
+      if current_pos[1] < workshop_pos[1]:
+        actions.append(env.world.cookbook.index["DOWN"])
+        direction_to_move = "DOWN"
+      elif current_pos[1] > workshop_pos[1]:
+        actions.append(env.world.cookbook.index["UP"])
+        direction_to_move = "UP"
+      
+      # Update the current position based on the movement action
+      if direction_to_move == "RIGHT":
+        current_pos = (current_pos[0] + 1, current_pos[1])
+      elif direction_to_move == "LEFT":
+        current_pos = (current_pos[0] - 1, current_pos[1])
+      elif direction_to_move == "DOWN":
+        current_pos = (current_pos[0], current_pos[1] + 1)
+      elif direction_to_move == "UP":
+        current_pos = (current_pos[0], current_pos[1] - 1)
+
+    # Use the workshop to craft the item
+    actions.append(env.world.cookbook.index["USE"])
+
+  return actions
 
  
 print(evaluate())
