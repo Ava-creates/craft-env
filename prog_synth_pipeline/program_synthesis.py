@@ -40,6 +40,9 @@ def format_program(tokens: List[str]) -> str:
         elif tokens[i] == "CRAFT_FUNC":
             result.append(f"CRAFT_FUNC({tokens[i+2]})")
             i += 4
+        elif tokens[i] == "COLLECT_FUNC":
+            result.append(f"COLLECT_FUNC({tokens[i+2]})")
+            i += 4
         elif tokens[i] == "if":
             # Skip LPAR and RPAR, use the actual item
             item = tokens[i+2]
@@ -79,7 +82,7 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
     recipes_path = "resources/recipes.yaml"
     hints_path = "resources/hints.yaml"
     env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, max_steps=100, 
+            recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
     tasks =["make[arrow]"]
     time =[20, 20 , 20]
@@ -118,7 +121,7 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
     return final_programs
 
 if __name__ == "__main__":
-    cfg_parser = CFGParser("cfg.txt")
+    cfg_parser = CFGParser("cfg/cfg.txt")
     start_symbol = "s"
     # recipes_path = "resources/recipes.yaml"
     # hints_path = "resources/hints.yaml"

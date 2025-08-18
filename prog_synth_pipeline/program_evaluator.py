@@ -1,6 +1,7 @@
-
-
 from typing import List, Dict, Any
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import env_factory
 import time
 import re
@@ -48,10 +49,7 @@ class ProgramEvaluator:
     def __init__(self, recipes_path: str = "resources/recipes.yaml", 
                  hints_path: str = "resources/hints.yaml",
                  visualise: bool = True):
-        # self.env_sampler = env_factory.EnvironmentFactory(
-        #     recipes_path, hints_path, max_steps=100, 
-        #     reuse_environments=False, visualise=visualise)
-        # self.visualise = visualise
+
         self.item_map =item_id_map = { 
                                 "WOOD": 9,
                                 "IRON": 7,
@@ -103,10 +101,9 @@ class ProgramEvaluator:
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
                 print("VDFS \n", env._current_state.inventory, "\n")
 
-                dir_str = tokens[i].split('(')[1].strip(')')
+                item = tokens[i].split('(')[1].strip(')')
                 # print("dir_str", dir_str)
-                item = self.item_map[dir_str]
-                print("item", dir_str)
+            
                 result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in craft")
@@ -117,7 +114,21 @@ class ProgramEvaluator:
                         d = True
                     reward += r 
                 i += 1
-        
+            elif len(tokens[i]) > 11 and tokens[i][:10] == "COLLECT_FUNC":
+
+                primitive = tokens[i].split('(')[1].strip(')')
+                # print("dir_str", dir_str)
+                print("primitive", primitive)
+                result = run_with_timeout( "collect", [primitive], env, timeout)
+                if(result == -1):
+                    print("Evaluation timed out in collect")
+                    return [], reward, False
+                for j in result:
+                    r, done, observations = env.step(j)
+                    if done:
+                        d = True
+                    reward += r 
+                i += 1
             elif tokens[i] == "if" and i + 4 < len(tokens):
                 # print(i)
                 condition = tokens[i + 1]
@@ -179,7 +190,7 @@ def main():
     recipes_path = "resources/recipes.yaml"
     hints_path = "resources/hints.yaml"
     env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, max_steps=100, 
+            recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
     env = env_sampler.sample_environment(task_name="make[bow]")
     print("VDFS \n", env.world.cookbook.index, "\n")

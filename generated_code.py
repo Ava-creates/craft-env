@@ -512,7 +512,55 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  return []
+  def get_workshop_for_item(item):
+    item_index = env.world.cookbook.index[item]
+    recipe = env.world.cookbook.recipes.get(item_index, None)
+    if recipe and "_key" in recipe:
+        workshop_type = recipe["_key"]
+        return next((idx for idx in env.world.workshop_indices 
+                     if env.world.cookbook.index.get(env.world.cookbook.reverse_contents[idx]) == workshop_type), None)
+    else:
+        return None
+
+  def move_to_workshop(workshop_index):
+      # Placeholder pathfinding logic
+      actions = []
+      target_pos = get_position_of_kind(workshop_index, env._current_state.grid)
+      if target_pos is not None:
+          current_pos = env._current_state.pos
+          delta_x = target_pos[0] - current_pos[0]
+          delta_y = target_pos[1] - current_pos[1]
+
+          # Move horizontally
+          if delta_x > 0:
+              actions.extend([craft.MOVE_FUNC(craft.RIGHT)] * abs(delta_x))
+          elif delta_x < 0:
+              actions.extend([craft.MOVE_FUNC(craft.LEFT)] * abs(delta_x))
+
+          # Move vertically
+          if delta_y > 0:
+              actions.extend([craft.MOVE_FUNC(craft.DOWN)] * abs(delta_y))
+          elif delta_y < 0:
+              actions.extend([craft.MOVE_FUNC(craft.UP)] * abs(delta_y))
+
+      return actions
+
+  def get_position_of_kind(kind_index, grid):
+    for y in range(grid.shape[1]):
+        for x in range(grid.shape[0]):
+            if grid[x, y, kind_index] > 0:
+                return (x, y)
+    return None
+
+  workshop_index = get_workshop_for_item(item)
+  actions = []
+
+  # Move to the nearest workshop if one is needed
+  if workshop_index is not None:
+      actions.extend(move_to_workshop(workshop_index))
+      actions.append(craft.CRAFT_FUNC(workshop_index))
+
+  return actions
 
  
 print(evaluate())

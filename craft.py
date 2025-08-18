@@ -97,6 +97,8 @@ class CraftWorld(object):
       s = self.sample_scenario_rope(make_island=make_island, make_cave=make_cave)
     elif self.env_type == 5:
       s = self.sample_scenario_bundle(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 6:
+      s = self.sample_scenario(make_island=make_island, make_cave=make_cave)
     else:
       s = self.sample_scenario_hard(make_island=make_island, make_cave=make_cave)
     return s
