@@ -512,29 +512,7 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  actions = []
-  goal_idx = env.world.cookbook.index[item]
-  if goal_idx not in env.world.workshop_indices:
-    raise ValueError(f"No workshop for crafting {item} with index {goal_idx}")
-
-  # Find the closest workshop to craft the item
-  min_dist = float('inf')
-  closest_workshop_pos = None
-  for workshop_idx in env.world.workshop_indices:
-      if workshop_idx == goal_idx:
-          workshop_grid_positions = np.argwhere(env._current_state.grid[:, :, workshop_idx] > 0)
-          for pos in workshop_grid_positions:
-              dist = abs(pos[0] - env._current_state.pos[0]) + abs(pos[1] - env._current_state.pos[1])
-              if dist < min_dist:
-                  min_dist = dist
-                  closest_workshop_pos = tuple(pos)
-
-  # Move to the closest workshop
-  if closest_workshop_pos:
-      actions.extend(mv(env, closest_workshop_pos))
-      actions.append(env.world.N_ACTIONS)  # USE action
-
-  return actions
+  return []
 
  
 print(evaluate())
