@@ -15,7 +15,7 @@ def solve(env, primitive, visualise=False) -> float:
 
   return total_reward
 
-@funsearch.evaluate
+@funsearch.run
 def evaluate() -> float:
   """Evaluates a collecting policy on a set of sample tasks."""
   visualise = False

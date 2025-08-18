@@ -513,60 +513,26 @@ def craft(env, item) -> list[int]:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
   actions = []
+  goal_idx = env.world.cookbook.index[item]
+  if goal_idx not in env.world.workshop_indices:
+    raise ValueError(f"No workshop for crafting {item} with index {goal_idx}")
 
-  # Get the index for the desired item
-  item_index = env.world.cookbook.index[item]
-  
-  # Check if the item can be crafted (i.e., has a recipe)
-  if item_index in env.world.cookbook.recipes:
-    # Find which workshop to use based on the available workshops and the required ingredients
-    for workshop_index in env.world.workshop_indices:
-      workshop = env.world.cookbook.index.get(workshop_index)
+  # Find the closest workshop to craft the item
+  min_dist = float('inf')
+  closest_workshop_pos = None
+  for workshop_idx in env.world.workshop_indices:
+      if workshop_idx == goal_idx:
+          workshop_grid_positions = np.argwhere(env._current_state.grid[:, :, workshop_idx] > 0)
+          for pos in workshop_grid_positions:
+              dist = abs(pos[0] - env._current_state.pos[0]) + abs(pos[1] - env._current_state.pos[1])
+              if dist < min_dist:
+                  min_dist = dist
+                  closest_workshop_pos = tuple(pos)
 
-      # Check if the workshop can be used for crafting the item
-      # For simplicity, let's assume there is a single type of workshop that can handle all crafting
-      # In practice, you would need to check the recipe requirements and match them with the workshop capabilities
-      if True:  # Placeholder condition
-        actions.append(env.world.cookbook.index["USE"])
-      
-    else:
-      # If no suitable workshop was found, return an empty list of actions
-      return []
-
-    # Move to the workshop
-    workshop_pos = (0, 0)  # Placeholder position for the workshop
-    current_pos = env._current_state.pos
-
-    while current_pos != workshop_pos:
-      direction_to_move = None
-      
-      # Simple heuristic to move towards the workshop
-      if current_pos[0] < workshop_pos[0]:
-        actions.append(env.world.cookbook.index["RIGHT"])
-        direction_to_move = "RIGHT"
-      elif current_pos[0] > workshop_pos[0]:
-        actions.append(env.world.cookbook.index["LEFT"])
-        direction_to_move = "LEFT"
-      
-      if current_pos[1] < workshop_pos[1]:
-        actions.append(env.world.cookbook.index["DOWN"])
-        direction_to_move = "DOWN"
-      elif current_pos[1] > workshop_pos[1]:
-        actions.append(env.world.cookbook.index["UP"])
-        direction_to_move = "UP"
-      
-      # Update the current position based on the movement action
-      if direction_to_move == "RIGHT":
-        current_pos = (current_pos[0] + 1, current_pos[1])
-      elif direction_to_move == "LEFT":
-        current_pos = (current_pos[0] - 1, current_pos[1])
-      elif direction_to_move == "DOWN":
-        current_pos = (current_pos[0], current_pos[1] + 1)
-      elif direction_to_move == "UP":
-        current_pos = (current_pos[0], current_pos[1] - 1)
-
-    # Use the workshop to craft the item
-    actions.append(env.world.cookbook.index["USE"])
+  # Move to the closest workshop
+  if closest_workshop_pos:
+      actions.extend(mv(env, closest_workshop_pos))
+      actions.append(env.world.N_ACTIONS)  # USE action
 
   return actions
 
