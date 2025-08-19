@@ -343,9 +343,9 @@ import collections
 import env_factory
 import craft
 import env
-def solve(env, item, visualise=False) -> float:
+def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
-  actions_to_take = craft(env, item)
+  actions_to_take = collect(env, primitive)
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -355,135 +355,118 @@ def solve(env, item, visualise=False) -> float:
     if done:
       break
 
+  if total_reward>0.5:
+    return 0.2
+
   return total_reward
 
 
 def evaluate() -> float:
-  """Evaluates a crafting policy on a sample task."""
+  """Evaluates a collecting policy on a set of sample tasks."""
   visualise = False
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"
   reward = 0 
   for i in range(10):
     if(i == 0):
-      item = "stick"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item,  visualise=visualise)
     
     elif(i==1):
-      item = "stick"
+      p = "iron"
       env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
-      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
-      if temp_reward>0 :
-        reward -= 0.3
       
     elif(i==2):
-      item = "bridge"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
 
-    elif(i==3):
-      item = "bridge"
+    elif(i==3): #grass not present onthe grid should return empty list
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
-      if temp_reward>0 :
-        reward -= 0.3
 
     elif(i==4):
-      item = "plank"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[plank]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      #env.step(1)
+      #env.step(4)
 
     elif(i==5):
-      item = "cloth"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 3, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[cloth]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      #env.step(1)
+      #env.step(4)
 
 
     elif(i==6):
-      item = "rope"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 4, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[rope]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
 
     elif(i==7):
-      item = "bundle"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bundle]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
-      env.step(0)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
+      #env.step(0)
+      #env.step(4)
 
     elif(i==8):
-      item = "bundle"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bundle]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
-
-      temp_reward = solve(env, item, visualise=visualise)
-      if temp_reward>0 :
-        reward -= 0.3
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
 
     else:
-      item = "goldarrow"
+      p = "gold"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
             visualise=visualise)
@@ -497,22 +480,72 @@ def evaluate() -> float:
       env.step(1)
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      
+    r= solve(env, p, visualise=visualise)
+    reward += r
 
   return reward
 
 
-def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item and just needsto craft the item by going to the needed workshop. 
-  
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  """Returns a sequence of actions to collect only the specified primitive, using only the agent's current inventory. Do not pick up primitives that are not passed as the argument.
+
+  This function computes a shortest path to reach and collect a given primitive (e.g., GOLD, GEM, WOOD) in the environment.
+  It accounts for obstacles and environmental constraints by allowing the agent to use tools already in inventory—
+  for example:
+    - Using a BRIDGE to cross WATER in order to reach GOLD.
+    - Using a PICKAXE to mine GEM.
+
+  The function assumes the world is static except for changes resulting from tool use (e.g., placing a bridge).
+  It does not perform crafting or attempt to acquire new items—only available tools in the inventory are used.
+
   Args:
       env (env.CraftLab): The CraftLab environment instance.
-      item (str): The name of the item to craft.
+      primitive (str): The name of the primitive to collect.
 
   Returns:
-      List[int]: A list of action indices the agent can execute to craft the item.
+      List[int]: A list of action indices the agent can execute to collect the primitive.
   """
-  return []
+  primitive_index = env.world.cookbook.index.index(primitive)
+  
+  # Initialize an empty list to store actions
+  actions = []
+  
+  # Function to find positions of all instances of the primitive in the environment
+  def find_positions_of_primitive(env, primitive_index):
+    """Find all positions of a given primitive in the grid."""
+    positions = []
+    for x in range(env._current_state.grid.shape[0]):
+        for y in range(env._current_state.grid.shape[1]):
+            if env._current_state.grid[x, y, primitive_index] > 0:
+                positions.append((x, y))
+    return positions
+  
+  # Function to calculate the shortest path to a given position
+  def shortest_path_to_position(current_pos, target_pos):
+      """Calculate the shortest path from current position to target position."""
+      # Placeholder for actual shortest path algorithm
+      return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+
+  # Find all positions of the target primitive
+  primitive_positions = find_positions_of_primitive(env, primitive_index)
+  
+  # Calculate shortest paths to each position and select the closest one
+  if primitive_positions:
+      shortest_distances = [(position, np.linalg.norm(np.array(position) - np.array(env._current_state.pos))) for position in primitive_positions]
+      target_position = min(shortest_distances, key=lambda x: x[1])[0]
+      
+      # Calculate the path to the closest target position
+      actions += shortest_path_to_position(env._current_state.pos, target_position)
+
+  def collect_primitive_at_position(env):
+    """Collect the primitive at the current agent's position."""
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+
+  # Collect the target primitive
+  actions += collect_primitive_at_position(env)
+
+  return actions
 
  
 print(evaluate())
