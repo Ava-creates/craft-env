@@ -226,7 +226,7 @@ class CFGParser:
 
 # Example usage
 if __name__ == "__main__":
-    cfg_parser = CFGParser("cfg.txt")
+    cfg_parser = CFGParser("cfg/cfg.txt")
 
     print("\nFunctions with arguments:")
     for name, args in cfg_parser.get_functions_with_args():
