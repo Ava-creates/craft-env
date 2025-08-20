@@ -8,6 +8,9 @@ import concurrent.futures
 import time
 import multiprocessing
 import env_factory
+import json
+import sys
+
 final =[]
 
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
@@ -25,9 +28,9 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
             with open("final2.txt", "a") as f:
                 for program in final:
                     f.write(program + "\n")
-        return result['total_reward']
+        return result["success"] , result['total_reward'], result['evaluation_time']
     except Exception as e:
-        return float('-inf')
+        return False, float('-inf'), 0.0
 
 
 def format_program(tokens: List[str]) -> str:
@@ -67,38 +70,50 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
-def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
+def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_file :str):
     """
     Priority-queue-based program synthesis up to a given depth.
     Evaluates only fully terminal (complete) programs.
     """
-    counter = itertools.count()
+    # counter = itertools.count()
     queue: List[Tuple[int, int, List[str]]] = []  # (depth, count, derivation)
 
-    heapq.heappush(queue, (0, next(counter), [start_symbol]))
+    heapq.heappush(queue, (0, [start_symbol]))
 
     evaluator = ProgramEvaluator()
     final_programs = []
-    recipes_path = "resources/recipes.yaml"
+    recipes_path = "resources/recipes_for_synth.yaml"
     hints_path = "resources/hints.yaml"
     env_sampler = env_factory.EnvironmentFactory(
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
-    tasks =["make[arrow]"]
-    time =[60, 60 , 60]
-    envs =[]
+    # Read tasks and time from JSON file
+    with open(json_file, "r") as f:
+        config = json.load(f)
+        tasks = config["tasks"]
+        time = config["time"]
+    envs = []
     for task in tasks:
         envs.append(env_sampler.sample_environment(task_name=task))
 
     while queue:
-        depth, _, current = heapq.heappop(queue)
+        depth, current = heapq.heappop(queue)
 
         if all(is_terminal(sym, cfg) for sym in current):
+            results = set()
             program_str = format_program(current)
-            print("program_str", program_str)
             for ind in range(len(envs)):
-                print(envs[ind].task_name)
-                evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time[ind])
+                s, r, eval_time = evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time[ind])
+                #the eval time here is insec
+                print(eval_time)
+                results.add(1 if s else 0)
+                if s :
+                    with open("solutions_from_prog_synth.txt", "a") as f:
+                        for program in final:
+                            f.write(f"{tasks[ind]}: {program}, reward: {r}, evaluation_time: {eval_time:.4f}s\n")
+
+            if results == {1}:
+                return
             final_programs.append(program_str)
             continue
 
@@ -109,9 +124,16 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
                 for production in cfg.rules[sym]:
+                    # print("rpduction rule", production)
+                    # print("tokenized version", tokenize_rhs(production))
+                    if (len(tokenize_rhs(production))>1): #checking if the alt thing is even needed???????
+                        print("alt thing is indeed needed")
+                        return 1
+
                     for alt in tokenize_rhs(production):
                         new_derivation = current[:idx] + alt + current[idx+1:]
-                        heapq.heappush(queue, (depth + 1, next(counter), new_derivation))
+                        heapq.heappush(queue, (depth + 1, new_derivation))
+                        # print(queue)
                 break  # Only expand the first non-terminal
 
     with open("final_all.txt", "a") as f:
@@ -121,6 +143,15 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
     return final_programs
 
 if __name__ == "__main__":
+    
+    # Check if JSON file path is provided as command line argument
+    if len(sys.argv) != 2:
+        print("Usage: python program_synthesis.py <json_file_path>")
+        print("Example: python program_synthesis.py task_config.json")
+        sys.exit(1)
+    
+    json_file = sys.argv[1]
+    
     cfg_parser = CFGParser("cfg/cfg.txt")
     start_symbol = "s"
     # recipes_path = "resources/recipes.yaml"
@@ -134,6 +165,7 @@ if __name__ == "__main__":
     # for task in tasks:
     #     envs.append(env_sampler.sample_environment(task_name=task))
     print(f"Start symbol: {start_symbol}")
+    print(f"Using JSON config file: {json_file}")
     print("\nGenerating programs (worklist)...")
     
-    synthesize_priority(cfg_parser, start_symbol, max_depth=17)
+    synthesize_priority(cfg_parser, start_symbol, max_depth=10, json_file=json_file)

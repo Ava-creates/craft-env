@@ -81,6 +81,7 @@ class ProgramEvaluator:
 
     def parse_program(self, program, env, timeout) -> List[int]:
         """Convert a program string into a list of actions."""
+        start_time = time.time()  # Start timing
         actions = []
         tokens = program.split()
         # print("tokens", tokens)
@@ -103,10 +104,10 @@ class ProgramEvaluator:
                 i += 1
                 
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
-                print("VDFS \n", env._current_state.inventory, "\n")
+                # print("VDFS \n", env._current_state.inventory, "\n")
 
                 item = tokens[i].split('(')[1].strip(')').lower()
-                # print("dir_str", dir_str)
+                # print(item)
             
                 result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
@@ -122,7 +123,7 @@ class ProgramEvaluator:
 
                 primitive = tokens[i].split('(')[1].strip(')').lower()
                 # print("dir_str", dir_str)
-                print("primitive", primitive)
+                # print("primitive", primitive)
                 result = run_with_timeout( "collect", [primitive], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in collect")
@@ -164,9 +165,11 @@ class ProgramEvaluator:
 
             else:
                 # print("Unknown token", tokens[i])
-                return [], reward, False
+                evaluation_time = time.time() - start_time  # Calculate evaluation time
+                return [], reward, False, evaluation_time
 
-        return actions, reward, d
+        evaluation_time = time.time() - start_time  # Calculate evaluation time
+        return actions, reward, d, evaluation_time
 
     def evaluate_program(self, program: str, env, timeout) -> Dict[str, Any]:
         """Evaluate a program in the craft environment."""
@@ -175,7 +178,7 @@ class ProgramEvaluator:
         # print(f"Environment: task {env.task_name}: {env.task}")
         env.reset()
         # Parse program into actions using the actual environment
-        actions, reward, d = self.parse_program(program, env, timeout)
+        actions, reward, d, evaluation_time = self.parse_program(program, env, timeout)
         # print("actions", actions)
         # Reset environment
         observations = env.reset()
@@ -184,6 +187,7 @@ class ProgramEvaluator:
         return {
             "total_reward": total_reward,
             "success": d and total_reward > 0,
+            "evaluation_time": evaluation_time
         }
 
 def main():

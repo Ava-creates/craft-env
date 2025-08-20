@@ -15,7 +15,7 @@ def collect(env, primitive) -> list[int]:
     # Priority queue for BFS (position, steps, inventory, actions)
     queue = collections.deque([(state.pos, 0, np.copy(state.inventory), [])])
     visited = set()
-    print(state.pos)
+    # print(state.pos)
     while queue:
         pos, steps, inv, actions = queue.popleft()
         # print(pos, steps, actions)

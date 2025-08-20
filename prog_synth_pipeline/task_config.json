@@ -1,0 +1,4 @@
+{
+  "tasks": [ "make[arrow]", "make[slingshot]", "make[goldarrow]"],
+  "time": [60, 60, 60]
+} 
