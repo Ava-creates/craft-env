@@ -18,10 +18,10 @@ def run_loop(env, n_steps, visualise=False):
   #   time.sleep(20)  # Keep the image visible for 2 seconds
   # else:
   #   print("Initial observations:", observations)
-  print("VDFS \n", env.world.cookbook.index, "\n")
+  # print("VDFS \n", env.world.cookbook.index, "\n")
   # actions=[3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 4]
   # actions =[1,4,1,4,1,1,4,0, 0, 0, 0, 0, 3, 0, 4, 0, 4]
-  actions = [0,0,4, 0, 4]
+  actions = [0,0,4, 0, 4,1, 1, 1, 3, 1, 3, 1, 3, 1, 3, 4]
   time.sleep(4)
   for t in range(len(actions)):
     # Random action
@@ -43,10 +43,11 @@ def run_loop(env, n_steps, visualise=False):
       env.render_matplotlib(frame=rewarding_frame, delta_time=0.7)
       print("[{}] Got a rewaaaard! {:.1f}".format(t, reward))
     elif done:
+
       env.render_matplotlib(
           frame=np.zeros_like(observations['image']), delta_time=0.3)
       print("[{}] Finished with nothing... Reset".format(t))
-
+    
 
 def main():
   visualise = True

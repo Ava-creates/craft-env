@@ -8,10 +8,12 @@ import re
 import json
 import os
 import io
+import numpy as np
 import contextlib
 from craft_func import craft
 from has_func import has
 from move_func import move
+from collect_func import collect
 import multiprocessing
 def run_funcs(queue, func_name, args_1, env):
     try:
@@ -20,6 +22,8 @@ def run_funcs(queue, func_name, args_1, env):
             result = move(env, w)
         elif func_name == "craft":
             result = craft(env, w)
+        elif func_name == "collect":
+            result = collect(env, w)
         elif func_name == "has":
             result = has(env, w) 
         queue.put(result)
@@ -101,7 +105,7 @@ class ProgramEvaluator:
             if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
                 print("VDFS \n", env._current_state.inventory, "\n")
 
-                item = tokens[i].split('(')[1].strip(')')
+                item = tokens[i].split('(')[1].strip(')').lower()
                 # print("dir_str", dir_str)
             
                 result = run_with_timeout( "craft", [item], env, timeout)
@@ -114,9 +118,9 @@ class ProgramEvaluator:
                         d = True
                     reward += r 
                 i += 1
-            elif len(tokens[i]) > 11 and tokens[i][:10] == "COLLECT_FUNC":
+            elif len(tokens[i]) > 13 and tokens[i][:12] == "COLLECT_FUNC":
 
-                primitive = tokens[i].split('(')[1].strip(')')
+                primitive = tokens[i].split('(')[1].strip(')').lower()
                 # print("dir_str", dir_str)
                 print("primitive", primitive)
                 result = run_with_timeout( "collect", [primitive], env, timeout)

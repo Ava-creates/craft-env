@@ -85,7 +85,7 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int):
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
     tasks =["make[arrow]"]
-    time =[20, 20 , 20]
+    time =[60, 60 , 60]
     envs =[]
     for task in tasks:
         envs.append(env_sampler.sample_environment(task_name=task))

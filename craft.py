@@ -164,7 +164,7 @@ class CraftWorld(object):
         grid[5, 6, wood_index] = 1
         
         # Place workshop1 at (5,7) - right next to wood
-        workshop1_index = self.cookbook.index["workshop1"]
+        workshop1_index = self.cookbook.index["workshop2"]
         grid[5, 7, workshop1_index] = 1
         
         return CraftScenario(grid, init_pos, self)
@@ -190,7 +190,7 @@ class CraftWorld(object):
         iron_index = self.cookbook.index["iron"]
         grid[5,7, iron_index] = 1
 
-        workshop1_index = self.cookbook.index["workshop2"]
+        workshop1_index = self.cookbook.index["workshop1"]
         grid[7, 7, workshop1_index] = 1
         
         return CraftScenario(grid, init_pos, self)
@@ -282,8 +282,9 @@ class CraftWorld(object):
         wood_index = self.cookbook.index["wood"]
         grid[4, 1, wood_index] = 1
 
-        workshop1_index = self.cookbook.index["workshop0"]
+        workshop1_index = self.cookbook.index["workshop1"]
         grid[8, 8, workshop1_index] = 1
+        print("workshop1 index placed for bundle")
         
         return CraftScenario(grid, init_pos, self)
 
