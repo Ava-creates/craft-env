@@ -23,7 +23,7 @@ recipes:
   knife:
     iron: 1
     rock: 1
-    _at: workshop2
+    _at: workshop0
 
   slingshot:
     rope: 1

@@ -91,26 +91,39 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
     with open(json_file, "r") as f:
         config = json.load(f)
         tasks = config["tasks"]
-        time = config["time"]
+        time_limits = config["time"]
     envs = []
     for task in tasks:
         envs.append(env_sampler.sample_environment(task_name=task))
 
+    current_depth = 0
+    depth_start_time = time.time()
+
     while queue:
         depth, current = heapq.heappop(queue)
 
+        # When we hit a new depth, log how long the last one took
+        if depth != current_depth:
+            elapsed = time.time() - depth_start_time
+            print(f"Finished enumerating depth {current_depth} in {elapsed:.4f}s")
+            current_depth = depth
+            depth_start_time = time.time()
+
+        # Terminal check
         if all(is_terminal(sym, cfg) for sym in current):
             results = set()
             program_str = format_program(current)
             for ind in range(len(envs)):
-                s, r, eval_time = evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time[ind])
-                #the eval time here is insec
-                print(eval_time)
+                s, r, eval_time = evaluate_program_with_evaluator(
+                    evaluator, program_str, envs[ind], time_limits[ind]
+                )
                 results.add(1 if s else 0)
-                if s :
+                if s:
+                    print("sol found for", tasks[ind])
                     with open("solutions_from_prog_synth.txt", "a") as f:
-                        for program in final:
-                            f.write(f"{tasks[ind]}: {program}, reward: {r}, evaluation_time: {eval_time:.4f}s\n")
+                        f.write(
+                            f"{tasks[ind]}: {program_str}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
+                        )
 
             if results == {1}:
                 return
@@ -119,22 +132,20 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
 
         if depth >= max_depth:
             continue
-        # if(len(final) > 1):
-        #     break
+
+        # Expand one nonterminal
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
                 for production in cfg.rules[sym]:
-                    # print("rpduction rule", production)
-                    # print("tokenized version", tokenize_rhs(production))
-                    if (len(tokenize_rhs(production))>1): #checking if the alt thing is even needed???????
-                        print("alt thing is indeed needed")
-                        return 1
-
                     for alt in tokenize_rhs(production):
                         new_derivation = current[:idx] + alt + current[idx+1:]
                         heapq.heappush(queue, (depth + 1, new_derivation))
-                        # print(queue)
-                break  # Only expand the first non-terminal
+                break
+
+    # After the loop, log the last depth's time
+    elapsed = time.time() - depth_start_time
+    print(f"Finished enumerating depth {current_depth} in {elapsed:.4f}s")
+ # Only expand the first non-terminal
 
     with open("final_all.txt", "a") as f:
         for program in final:
@@ -168,4 +179,4 @@ if __name__ == "__main__":
     print(f"Using JSON config file: {json_file}")
     print("\nGenerating programs (worklist)...")
     
-    synthesize_priority(cfg_parser, start_symbol, max_depth=10, json_file=json_file)
+    synthesize_priority(cfg_parser, start_symbol, max_depth=20, json_file=json_file)

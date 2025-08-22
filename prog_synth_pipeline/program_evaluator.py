@@ -58,23 +58,10 @@ class ProgramEvaluator:
                                 "WOOD": 9,
                                 "IRON": 7,
                                 "GRASS": 8,
-                                "PLANK": 13,
-                                "STICK": 14,
-                                "CLOTH": 15,
                                 "ROPE": 16,
-                                "BRIDGE": 17,
-                                "BUNDLE": 18,
-                                "HAMMER": 19,
-                                "KNIFE": 20,
-                                "BED": 21,
-                                "AXE": 22,
-                                "SHEARS": 23,
-                                "LADDER": 24,
+                                "KNIFE": 20,                             
                                 "SLINGSHOT": 25,
                                 "ARROW": 26,
-                                "BOW": 27,
-                                "BENCH": 28,
-                                "FLAG": 29,
                                 "GOLDARROW": 30
                             }
 
@@ -194,16 +181,16 @@ def main():
     evaluator = ProgramEvaluator(visualise=True)
     # flag  = "CRAFT_FUNC(HAMMER) ; CRAFT_FUNC(WOOD) ; CRAFT_FUNC(IRON) ; CRAFT_FUNC(BENCH) ;"
     flag ="CRAFT_FUNC(ROPE) ; CRAFT_FUNC(BUNDLE) ; CRAFT_FUNC(BOW) ;"
-    program = "CRAFT_FUNC(STICK) ; CRAFT_FUNC(PLANK) ; CRAFT_FUNC(LADDER) ;"
-    recipes_path = "resources/recipes.yaml"
+    program = " COLLECT_FUNC(ROCK) ; COLLECT_FUNC(IRON) ; CRAFT_FUNC(KNIFE) "
+    recipes_path = "resources/recipes_for_synth.yaml"
     hints_path = "resources/hints.yaml"
     env_sampler = env_factory.EnvironmentFactory(
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
-    env = env_sampler.sample_environment(task_name="make[bow]")
+    env = env_sampler.sample_environment(task_name="make[knife]")
     print("VDFS \n", env.world.cookbook.index, "\n")
 
-    result = evaluator.evaluate_program(flag, env, 300)
+    result = evaluator.evaluate_program(program, env, 300)
     print("\nEvaluation Results:")
     print(f"Total Reward: {result['total_reward']}")
     print(f"Success: {result['success']}")

@@ -55,6 +55,7 @@ def collect(env, primitive) -> list[int]:
                                 actions + [DOWN, USE] if adj_pos[1] > pos[1] else\
                                 actions + [LEFT, USE] if adj_pos[0] < pos[0] else\
                                 actions + [RIGHT, USE]
+                    print(action_list)
                     return action_list
 
         # Generate possible moves
@@ -91,6 +92,6 @@ def collect(env, primitive) -> list[int]:
                             if cell_index == state.world.cookbook.index[target_resource]:
                                 new_inv = inv.copy()
                                 queue.append((adj_pos, steps + 2, new_inv, actions + [dir_idx, USE]))
-
+    
     return []  # Return empty list and negative reward if target is unreachable
 

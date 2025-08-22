@@ -20,8 +20,8 @@ def run_loop(env, n_steps, visualise=False):
   #   print("Initial observations:", observations)
   # print("VDFS \n", env.world.cookbook.index, "\n")
   # actions=[3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 4]
-  # actions =[1,4,1,4,1,1,4,0, 0, 0, 0, 0, 3, 0, 4, 0, 4]
-  actions = [0,0,4, 0, 4,1, 1, 1, 3, 1, 3, 1, 3, 1, 3, 4]
+  actions =[0, 2, 4, 0, 0, 0, 0, 0, 0, 2, 4, 2, 2, 2, 1, 2, 1, 2, 2, 4]
+  # actions = [0,0,4, 0, 4,1, 1, 1, 3, 1, 3, 1, 3, 1, 3, 4]
   time.sleep(4)
   for t in range(len(actions)):
     # Random action
@@ -51,13 +51,13 @@ def run_loop(env, n_steps, visualise=False):
 
 def main():
   visualise = True
-  recipes_path = "resources/recipes.yaml"
+  recipes_path = "resources/recipes_for_synth.yaml"
   hints_path = "resources/hints.yaml"
   env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+      recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
       visualise=visualise)
 
-  env = env_sampler.sample_environment(task_name='make[bundle]')
+  env = env_sampler.sample_environment(task_name='make[knife]')
   print("Environment: task {}: {}".format(env.task_name, env.task))
   run_loop(env, 100 * 3, visualise=visualise)
 
