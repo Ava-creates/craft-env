@@ -87,5 +87,5 @@ def craft(env, item):
 
     # Use the workshop to craft the item
     actions.append(4)  # USE
-    print(actions)
+    # print(actions)
     return actions

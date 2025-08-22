@@ -105,7 +105,10 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
         # When we hit a new depth, log how long the last one took
         if depth != current_depth:
             elapsed = time.time() - depth_start_time
-            print(f"Finished enumerating depth {current_depth} in {elapsed:.4f}s")
+            message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s"
+            print(message)
+            with open("depth_log.txt", "a") as f:
+                f.write(message + "\n")
             current_depth = depth
             depth_start_time = time.time()
 
@@ -118,11 +121,11 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
                     evaluator, program_str, envs[ind], time_limits[ind]
                 )
                 results.add(1 if s else 0)
-                if s:
-                    print("sol found for", tasks[ind])
+                if r>0:
+                    print("reward found for", tasks[ind])
                     with open("solutions_from_prog_synth.txt", "a") as f:
                         f.write(
-                            f"{tasks[ind]}: {program_str}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
+                            f"{tasks[ind]}: {program_str}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
                         )
 
             if results == {1}:
@@ -144,7 +147,10 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
 
     # After the loop, log the last depth's time
     elapsed = time.time() - depth_start_time
-    print(f"Finished enumerating depth {current_depth} in {elapsed:.4f}s")
+    message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s"
+    print(message)
+    with open("depth_log.txt", "a") as f:
+        f.write(message + "\n")
  # Only expand the first non-terminal
 
     with open("final_all.txt", "a") as f:

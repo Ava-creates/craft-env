@@ -55,7 +55,7 @@ def collect(env, primitive) -> list[int]:
                                 actions + [DOWN, USE] if adj_pos[1] > pos[1] else\
                                 actions + [LEFT, USE] if adj_pos[0] < pos[0] else\
                                 actions + [RIGHT, USE]
-                    print(action_list)
+                    # print(action_list)
                     return action_list
 
         # Generate possible moves
