@@ -58,11 +58,12 @@ class ProgramEvaluator:
                                 "WOOD": 9,
                                 "IRON": 7,
                                 "GRASS": 8,
-                                "ROPE": 16,
-                                "KNIFE": 20,                             
-                                "SLINGSHOT": 25,
-                                "ARROW": 26,
-                                "GOLDARROW": 30
+                                "ROCK": 10,
+                                "ROPE": 13,
+                                "KNIFE": 14,                             
+                                "SLINGSHOT": 15,
+                                "ARROW": 16,
+                                "GOLDARROW": 17
                             }
 
 
