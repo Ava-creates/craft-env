@@ -1,3 +1,0 @@
-{"timestamp": "2025-07-28T10:28:51.354053", "function_name": "collect", "function_body": "  return []", "island_id": null, "scores": {"3": 0.0}}
-{"timestamp": "2025-07-28T10:30:49.126315", "function_name": "collect", "function_body": "", "island_id": 2, "scores": {"3": -1}}
-{"timestamp": "2025-07-28T10:30:51.099594", "function_name": "collect", "function_body": "", "island_id": 2, "scores": {"3": -1}}

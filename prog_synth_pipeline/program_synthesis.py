@@ -6,13 +6,24 @@ from program_evaluator import ProgramEvaluator
 import heapq
 import concurrent.futures
 import time
-import multiprocessing
+from multiprocessing import Pool, cpu_count
 import env_factory
 import json
 import sys
 
 final =[]
+evaluator = ProgramEvaluator()
+recipes_path = "resources/recipes_for_synth.yaml"
+hints_path = "resources/hints.yaml"
+env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, 6, max_steps=100, 
+            reuse_environments=False, visualise=False)
+    # Read tasks and time from JSON 
 
+with open("prog_synth_pipeline/task_config.json", "r") as f:
+        config = json.load(f)
+        tasks = config["tasks"]
+        time_limits = config["time"]
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
 
@@ -21,16 +32,17 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
     Evaluate a program using your ProgramEvaluator.
     """
 
-    try:
-        result = evaluator.evaluate_program(program_str, env, time)
-        if(result['success']):
+    # try:
+    result = evaluator.evaluate_program(program_str, env, time)
+    if(result['success']):
             final.append(program_str)
             with open("final2.txt", "a") as f:
                 for program in final:
                     f.write(program + "\n")
-        return result["success"] , result['total_reward'], result['evaluation_time']
-    except Exception as e:
-        return False, float('-inf'), 0.0
+    return result["success"] , result['total_reward'], result['evaluation_time']
+    # except Exception as e:
+    #     print(E)
+    #     return False, float('-inf'), 0.0
 
 
 def format_program(tokens: List[str]) -> str:
@@ -70,6 +82,34 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
+def evaluate(program_str):
+    envs = []
+    for task in tasks:
+        envs.append(env_sampler.sample_environment(task_name=task))
+    results = set()
+    for ind in range(len(envs)):
+        s, r, eval_time = evaluate_program_with_evaluator(evaluator, program_str, envs[ind], time_limits[ind])
+        results.add(1 if s else 0)
+   
+    
+    return program_str, results, s, r, eval_time, tasks[ind] 
+
+
+def eval_pll(programs, num_workers=None):
+
+
+    if num_workers is None:
+        num_workers = cpu_count()  # use all available cores
+        print(num_workers)
+
+    results = {}
+    with Pool(processes=num_workers) as pool:
+        for prog, res, s, r, eval_time, task_name in pool.map(evaluate, programs):
+            results[prog] = res
+            with open("solutions.txt", "a") as f:              
+                    f.write(f"{task_name}: {prog}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n")
+    return results
+
 def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_file :str):
     """
     Priority-queue-based program synthesis up to a given depth.
@@ -80,57 +120,49 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
 
     heapq.heappush(queue, (0, [start_symbol]))
 
-    evaluator = ProgramEvaluator()
-    final_programs = []
-    recipes_path = "resources/recipes_for_synth.yaml"
-    hints_path = "resources/hints.yaml"
-    env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, 6, max_steps=100, 
-            reuse_environments=False, visualise=False)
-    # Read tasks and time from JSON file
-    with open(json_file, "r") as f:
-        config = json.load(f)
-        tasks = config["tasks"]
-        time_limits = config["time"]
-    envs = []
-    for task in tasks:
-        envs.append(env_sampler.sample_environment(task_name=task))
-
+    
     current_depth = 0
     depth_start_time = time.time()
-
+    depth_counter = 0  # Counter for programs at current depth
+    curr =[]
     while queue:
+        
         depth, current = heapq.heappop(queue)
 
         # When we hit a new depth, log how long the last one took
         if depth != current_depth:
             elapsed = time.time() - depth_start_time
-            message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s"
+            message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s (total programs: {depth_counter})"
             print(message)
-            with open("depth_log.txt", "a") as f:
-                f.write(message + "\n")
+            eval_pll(curr)
             current_depth = depth
+            curr = []
+
             depth_start_time = time.time()
+            depth_counter = 0  # Reset counter for new depth
 
         # Terminal check
         if all(is_terminal(sym, cfg) for sym in current):
-            results = set()
+            depth_counter += 1
             program_str = format_program(current)
-            for ind in range(len(envs)):
-                s, r, eval_time = evaluate_program_with_evaluator(
-                    evaluator, program_str, envs[ind], time_limits[ind]
-                )
-                results.add(1 if s else 0)
-                if r>0:
-                    print("reward found for", tasks[ind])
-                    with open("solutions_from_prog_synth.txt", "a") as f:
-                        f.write(
-                            f"{tasks[ind]}: {program_str}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
-                        )
+            curr.append(program_str)
 
-            if results == {1}:
-                return
-            final_programs.append(program_str)
+            # with open("enumerating_all_progs.txt", "w") as f:
+            #     f.write(f"program:{program_str}, depth:{depth}\n")
+
+            # for ind in range(len(envs)):
+            #     s, r, eval_time = evaluate_program_with_evaluator(
+            #         evaluator, program_str, envs[ind], time_limits[ind]
+            #     # )
+            #     results.add(1 if s else 0)
+            #     if r>0:
+            #         print("reward found for", tasks[ind])
+            #         with open("solutionsrom_prog_synth.txt", "a") as f:               #       f.write(
+            #                 f"{tasks[ind]}: {program_str}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
+            #             )
+
+            # if results == {1}:
+            #     return
             continue
 
         if depth >= max_depth:
@@ -140,22 +172,22 @@ def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_
         for idx, sym in enumerate(current):
             if not is_terminal(sym, cfg):
                 for production in cfg.rules[sym]:
-                    for alt in tokenize_rhs(production):
+                  for alt in tokenize_rhs(production):
                         new_derivation = current[:idx] + alt + current[idx+1:]
-                        heapq.heappush(queue, (depth + 1, new_derivation))
+                        heapq.heappush(queue , (depth + 1, new_derivation))
                 break
 
-    # After the loop, log the last depth's time
-    elapsed = time.time() - depth_start_time
-    message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s"
-    print(message)
-    with open("depth_log.txt", "a") as f:
-        f.write(message + "\n")
- # Only expand the first non-terminal
+    # After the loop, log the last dep's time
+    # elapsed = time.time() - dth_start_time
+    # message = f"Finished emerating depth {current_depth}n {elapsed:.4f}s"
+    # print(message)
+#     with open("depth_log.txt", "a") as f:
+#         f.write(message + "\n")
+#  # Only expand the first non-terminal
 
-    with open("final_all.txt", "a") as f:
-        for program in final:
-            f.write(program + "\n")
+#     with open("final_all.txt", "a") as f:
+#         for program in final:
+#             f.write(program + "\n")
 
     return final_programs
 

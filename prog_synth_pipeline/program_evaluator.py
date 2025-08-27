@@ -16,7 +16,6 @@ from move_func import move
 from collect_func import collect
 import multiprocessing
 def run_funcs(queue, func_name, args_1, env):
-    try:
         w = args_1[0]
         if func_name == "move":
             result = move(env, w)
@@ -26,29 +25,34 @@ def run_funcs(queue, func_name, args_1, env):
             result = collect(env, w)
         elif func_name == "has":
             result = has(env, w) 
-        queue.put(result)
-    except Exception as e:
-        queue.put(e)
+
+        return result
+    #     queue.put(result)
+    # except Exception as e:
+    #     queue.put(e)
 
 def run_with_timeout(func_name, args_1, env, timeout):
-        queue_obj = multiprocessing.Queue()
-        p = multiprocessing.Process(target=run_funcs, args=(queue_obj, func_name, args_1, env))
-        p.start()
-        p.join(timeout)
-        if p.is_alive():
-            # print("Evaluation timed out.")
-            p.terminate()
-            p.join()
-            return -1
-        if not queue_obj.empty():
-            result = queue_obj.get()
-            if isinstance(result, Exception):
-                print("Error evaluating:", result)
-                return -1
-            return result
-        else:
-            print("No result returned.")
-            return -1
+
+        return run_funcs([], func_name, args_1, env)
+
+        # queue_obj = multiprocessing.Queue()
+        # p = multiprocessing.Process(target=run_funcs, args=(queue_obj, func_name, args_1, env))
+        # p.start()
+        # p.join(timeout)
+        # if p.is_alive():
+        #     # print("Evaluation timed out.")
+        #     p.terminate()
+        #     p.join()
+        #     return -1
+        # if not queue_obj.empty():
+        #     result = queue_obj.get()
+        #     if isinstance(result, Exception):
+        #         print("Error evaluating:", result)
+        #         return -1
+        #     return result
+        # else:
+        #     print("No result returned.")
+        #     return -1
 class ProgramEvaluator:
     def __init__(self, recipes_path: str = "resources/recipes.yaml", 
                  hints_path: str = "resources/hints.yaml",
