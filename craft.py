@@ -528,14 +528,14 @@ class CraftState(object):
               n_inventory[i] -= inputs[i]
             success = True
 
-        elif thing == self.world.water_index:
-          if n_inventory[cookbook.index["bridge"]] > 0:
-            n_grid[nx, ny, self.world.water_index] = 0
-            n_inventory[cookbook.index["bridge"]] -= 1
+        # elif thing == self.world.water_index:
+        #   if n_inventory[cookbook.index["bridge"]] > 0:
+        #     n_grid[nx, ny, self.world.water_index] = 0
+        #     n_inventory[cookbook.index["bridge"]] -= 1
 
-        elif thing == self.world.stone_index:
-          if n_inventory[cookbook.index["axe"]] > 0:
-            n_grid[nx, ny, self.world.stone_index] = 0
+        # elif thing == self.world.stone_index:
+        #   if n_inventory[cookbook.index["axe"]] > 0:
+        #     n_grid[nx, ny, self.world.stone_index] = 0
 
         break
 
