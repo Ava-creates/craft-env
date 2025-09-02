@@ -79,7 +79,7 @@ class ProgramEvaluator:
         # print("tokens", tokens)
         i = 0
         reward = 0
-    
+        func=[]
         d = False
         while i < len(tokens):
             if len(tokens[i]) > 10 and tokens[i][:9] == "MOVE_FUNC":
@@ -94,13 +94,10 @@ class ProgramEvaluator:
                     d = True
                 reward += r
                 i += 1
+                func.append(("MOVE_FUNC", r))
                 
-            if len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
-                # print("VDFS \n", env._current_state.inventory, "\n")
-
-                item = tokens[i].split('(')[1].strip(')').lower()
-                # print(item)
-            
+            elif len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
+                item = tokens[i].split('(')[1].strip(')').lower()            
                 result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in craft")
@@ -110,9 +107,10 @@ class ProgramEvaluator:
                     if done:
                         d = True
                     reward += r 
+                func.append((tokens[i][:10], r))
                 i += 1
-            elif len(tokens[i]) > 13 and tokens[i][:12] == "COLLECT_FUNC":
 
+            elif len(tokens[i]) > 13 and tokens[i][:12] == "COLLECT_FUNC":
                 primitive = tokens[i].split('(')[1].strip(')').lower()
                 # print("dir_str", dir_str)
                 # print("primitive", primitive)
@@ -125,6 +123,7 @@ class ProgramEvaluator:
                     if done:
                         d = True
                     reward += r 
+                func.append((tokens[i][:12], r))
                 i += 1
             elif tokens[i] == "if" and i + 4 < len(tokens):
                 # print(i)
@@ -161,7 +160,7 @@ class ProgramEvaluator:
                 return [], reward, False, evaluation_time
 
         evaluation_time = time.time() - start_time  # Calculate evaluation time
-        return actions, reward, d, evaluation_time
+        return actions, reward, d, evaluation_time , func
 
     def evaluate_program(self, program: str, env, timeout) -> Dict[str, Any]:
         """Evaluate a program in the craft environment."""
@@ -170,7 +169,7 @@ class ProgramEvaluator:
         # print(f"Environment: task {env.task_name}: {env.task}")
         env.reset()
         # Parse program into actions using the actual environment
-        actions, reward, d, evaluation_time = self.parse_program(program, env, timeout)
+        actions, reward, d, evaluation_time, func = self.parse_program(program, env, timeout)
         # print("actions", actions)
         # Reset environment
         observations = env.reset()
@@ -179,7 +178,8 @@ class ProgramEvaluator:
         return {
             "total_reward": total_reward,
             "success": d and total_reward > 0,
-            "evaluation_time": evaluation_time
+            "evaluation_time": evaluation_time,
+            "func":func
         }
 
 def main():

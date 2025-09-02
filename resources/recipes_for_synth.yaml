@@ -38,5 +38,5 @@ recipes:
 
   goldarrow:
     gold: 1
-    wood: 1
+    arrow: 1
     _at: workshop0

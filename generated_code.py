@@ -512,65 +512,54 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  # Get the index of the desired item from the cookbook
+  # Find out which workshop is required for crafting the item
+  # This assumes that each recipe in the cookbook has a "_key" entry indicating the workshop type needed.
   item_index = env.world.cookbook.index[item]
+  recipes = env.world.cookbook.recipes[item_index]
+
+  if '_key' not in recipes:
+    raise ValueError(f"No workshop specified for crafting {item}.")
+
+  workshop_type = recipes['_key']
+  print(f"Workshop required: {workshop_type}")
+
+  # Find the index of the workshop type
+  workshop_index = env.world.cookbook.index[workshop_type]
+  print(f"Index of {workshop_type}: {workshop_index}")
+
+  # Identify all possible positions of the workshop in the grid
+  workshop_positions = np.argwhere(env._current_state.grid[:, :, workshop_index] == 1)
+  if len(workshop_positions) == 0:
+    raise ValueError(f"No available workshops for crafting {item}.")
+
+  print(f"Workshop positions: {workshop_positions}")
+
+  # Choose the first available workshop position
+  target_pos = tuple(workshop_positions[0])
+  print(f"Target workshop position: {target_pos}")
+
+  # Calculate the direction vector to the target workshop
+  current_pos = env._current_state.pos
+  dir_vector = (target_pos[1] - current_pos[1], target_pos[0] - current_pos[0])
+
+  # Translate direction vector into a sequence of actions
+  actions = []
+  if dir_vector[1] > 0:
+    actions.extend([env.world.UP]*dir_vector[1])
+  elif dir_vector[1] < 0:
+    actions.extend([env.world.DOWN]*abs(dir_vector[1]))
+
+  if dir_vector[0] > 0:
+    actions.extend([env.world.RIGHT]*dir_vector[0])
+  elif dir_vector[0] < 0:
+    actions.extend([env.world.LEFT]*abs(dir_vector[0]))
+
+  # Add the USE action to craft the item
+  actions.append(env.world.USE)
+
+  print(f"Actions to take: {actions}")
   
-  # Check if there is a recipe for the desired item
-  if item_index in env.world.cookbook.recipes:
-    recipe = env.world.cookbook.recipes[item_index]
-    
-    # Determine which workshop to go to based on the recipe's "_key"
-    required_kind = recipe.get("_key")
-    if required_kind:
-      workshop_index = env.world.workshop_indices[required_kind]
-      
-      # Calculate the position of the nearest workshop
-      grid_size = (env.world.scenario.init_grid.shape[0], env.world.scenario.init_grid.shape[1])
-      agent_pos = env._current_state.pos
-      
-      # Placeholder function to find the shortest path to a specific index in the grid
-      def find_shortest_path(grid, start, target_index):
-        queue = collections.deque([(start, [])])
-        visited = set()
-        
-        while queue:
-          pos, path = queue.popleft()
-          if pos in visited:
-            continue
-          visited.add(pos)
-          
-          x, y = pos
-          if grid[x, y, target_index] > 0:
-            return path + [target_index]
-          
-          for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-              nx, ny = x + dx, y + dy
-              if 0 <= nx < grid_size[0] and 0 <= ny < grid_size[1]:
-                  queue.append(((nx, ny), path + [(dx, dy)]))
-        
-        return None
-      
-      path_to_workshop = find_shortest_path(env._current_state.grid, agent_pos, workshop_index)
-      
-      if path_to_workshop:
-        actions = []
-        for move in path_to_workshop[:-1]:
-          # Placeholder: Convert relative moves to action indices
-          if move == (1, 0):
-              actions.append(4)  # DOWN
-          elif move == (-1, 0):
-              actions.append(3)  # UP
-          elif move == (0, 1):
-              actions.append(2)  # LEFT
-          elif move == (0, -1):
-              actions.append(1)  # RIGHT
-        
-        # Finally, use the workshop to craft the item
-        actions.append(5)  # USE
-        
-        return actions
-  
-  return []
+  return actions
 
  
 print(evaluate())
