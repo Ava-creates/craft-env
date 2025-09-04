@@ -410,21 +410,15 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  def move_towards(pos: np.ndarray, target_pos: np.ndarray, actions: list[int]):
-      dx, dy = target_pos - pos
-      while not np.array_equal(pos, target_pos):
-          dir_x = 3 if dx > 0 else (2 if dx < 0 else None)
-          dir_y = 1 if dy > 0 else (0 if dy < 0 else None)
-
-          # Determine direction to move in
-          if abs(dx) >= abs(dy) and dir_x is not None:  # Prioritize moving in x-direction first
-              actions.append(dir_x)
-              pos[0] += 1 if dx > 0 else -1
-              dx -= 1 if dx > 0 else (1 if dx < 0 else 0)
-          elif abs(dy) > abs(dx) and dir_y is not None:  # Then move in y-direction
-              actions.append(dir_y)
-              pos[1] += 1 if dy > 0 else -1
-              dy -= 1 if dy > 0 else (1 if dy < 0 else 0)
+  def get_direction(dx, dy):
+      if dx > 0:
+          return 3  # RIGHT
+      elif dx < 0:
+          return 2  # LEFT
+      elif dy > 0:
+          return 1  # UP
+      else:
+          return 0  # DOWN
 
   cookbook = env.world.cookbook
   goal_index = cookbook.index[item]
@@ -437,35 +431,39 @@ def craft(env, item) -> list[int]:
   actions = []
 
   # Find the closest workshop that can craft the desired item
-  closest_workshop_idx, min_distance = None, float('inf')
   pos = np.array(env._current_state.pos)
+  min_distance = float('inf')
+  nearest_workshop_pos = None
 
   for workshop_idx in workshop_indices:
-      # Calculate the mean position of all workshops of this type
+      # Get all positions of this type of workshop
       workshop_pos_list = np.argwhere(env._current_state.grid[:, :, workshop_idx])
 
       if len(workshop_pos_list) > 0:  # Check if there is any location for the workshop
-          workshop_pos_mean = workshop_pos_list.mean(axis=0)
-          distance = np.linalg.norm(pos - workshop_pos_mean, ord=2)
-          if distance < min_distance:
-              closest_workshop_idx, min_distance = workshop_idx, distance
+          for target_pos in workshop_pos_list:
+              distance = np.linalg.norm(pos - target_pos, ord=2)
+              if distance < min_distance:
+                  nearest_workshop_pos = target_pos
+                  min_distance = distance
 
-  if closest_workshop_idx is None:
+  if nearest_workshop_pos is None:
       raise ValueError("No available workshop found")
 
-  # Calculate the closest position to move towards
-  target_positions = np.argwhere(env._current_state.grid[:, :, closest_workshop_idx])
-  nearest_target_pos = None
-  min_nearest_distance = float('inf')
-
-  for target_pos in target_positions:
-      distance = np.linalg.norm(pos - target_pos, ord=2)
-      if distance < min_nearest_distance:
-          nearest_target_pos = target_pos
-          min_nearest_distance = distance
-
   # Move to the closest workshop position
-  move_towards(pos, nearest_target_pos, actions)
+  while not np.array_equal(pos, nearest_workshop_pos):
+      dx, dy = nearest_workshop_pos - pos
+      direction = get_direction(dx, dy)
+      actions.append(direction)
+
+      # Calculate next position based on the chosen direction
+      if direction == 0:
+          pos[1] -= 1
+      elif direction == 1:
+          pos[1] += 1
+      elif direction == 2:
+          pos[0] -= 1
+      elif direction == 3:
+          pos[0] += 1
 
   # Use the workshop to craft the item
   actions.append(4)  # USE
