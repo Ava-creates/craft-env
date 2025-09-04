@@ -34,7 +34,6 @@ def run_funcs(queue, func_name, args_1, env):
 def run_with_timeout(func_name, args_1, env, timeout):
 
         return run_funcs([], func_name, args_1, env)
-
         # queue_obj = multiprocessing.Queue()
         # p = multiprocessing.Process(target=run_funcs, args=(queue_obj, func_name, args_1, env))
         # p.start()
@@ -70,7 +69,6 @@ class ProgramEvaluator:
                                 "GOLDARROW": 17
                             }
 
-
     def parse_program(self, program, env, timeout) -> List[int]:
         """Convert a program string into a list of actions."""
         start_time = time.time()  # Start timing
@@ -94,7 +92,7 @@ class ProgramEvaluator:
                     d = True
                 reward += r
                 i += 1
-                func.append(("MOVE_FUNC", r))
+                func.append(("MOVE_FUNC", r, result))
                 
             elif len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
                 item = tokens[i].split('(')[1].strip(')').lower()            
@@ -107,7 +105,7 @@ class ProgramEvaluator:
                     if done:
                         d = True
                     reward += r 
-                func.append((tokens[i][:10], r))
+                func.append((tokens[i][:10], r, result))
                 i += 1
 
             elif len(tokens[i]) > 13 and tokens[i][:12] == "COLLECT_FUNC":
@@ -123,7 +121,7 @@ class ProgramEvaluator:
                     if done:
                         d = True
                     reward += r 
-                func.append((tokens[i][:12], r))
+                func.append((tokens[i][:12], r, result))
                 i += 1
             elif tokens[i] == "if" and i + 4 < len(tokens):
                 # print(i)
@@ -160,22 +158,14 @@ class ProgramEvaluator:
                 return [], reward, False, evaluation_time
 
         evaluation_time = time.time() - start_time  # Calculate evaluation time
-        return actions, reward, d, evaluation_time , func
+        return  reward, d, evaluation_time , func
 
     def evaluate_program(self, program: str, env, timeout) -> Dict[str, Any]:
         """Evaluate a program in the craft environment."""
-        # Create environment
-        # env = self.env_sampler.sample_environment(task_name=task_name)
-        # print(f"Environment: task {env.task_name}: {env.task}")
         env.reset()
-        # Parse program into actions using the actual environment
-        actions, reward, d, evaluation_time, func = self.parse_program(program, env, timeout)
-        # print("actions", actions)
-        # Reset environment
-        observations = env.reset()
-        total_reward = 0 + reward
-        done = False
+        total_reward, d, evaluation_time, func = self.parse_program(program, env, timeout)
         return {
+            "actions": "just ignore",
             "total_reward": total_reward,
             "success": d and total_reward > 0,
             "evaluation_time": evaluation_time,

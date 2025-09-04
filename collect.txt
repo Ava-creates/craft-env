@@ -18,6 +18,7 @@ def solve(env, primitive, visualise=False) -> float:
 @funsearch.run
 def evaluate() -> float:
   """Evaluates a collecting policy on a set of sample tasks."""
+  #max reward is 4
   visualise = False
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"

@@ -43,7 +43,7 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
             with open("final2.txt", "a") as f:
                 for program in final:
                     f.write(program + "\n")
-    return result["success"] , result['total_reward'], result['evaluation_time'] , result["func"]
+    return result["actions"], result["success"], result['total_reward'], result['evaluation_time'] , result["func"]
     # except Exception as e:
     #     print(E)
     #     return False, float('-inf'), 0.0
@@ -92,11 +92,11 @@ def evaluate(program_str):
     envs.append(env_sampler.sample_environment(task_name='make[arrow]'))
     results = set()
     # for ind in range(len(envs)):
-    s, r, eval_time, funcs = evaluate_program_with_evaluator(evaluator, program_str, envs[0], 60)
+    a, s, r, eval_time, funcs = evaluate_program_with_evaluator(evaluator, program_str, envs[0], 60)
     results.add(1 if s else 0)
    
     
-    return program_str, results, s, r, eval_time, "make[arrow]",funcs
+    return a, program_str, results, s, r, eval_time, "make[arrow]",funcs
 
 def eval_pll(programs, num_workers=None):
     if num_workers is None:
@@ -154,124 +154,71 @@ def synthesis_llm():
     Example output format:
     $CRAFT_FUNC(ARROW) ; COLLECT_FUNC(WOOD) ; MOVE_FUNC(RIGHT)$
     """
-    client = genai.Client()
-    first_failing_funcs = set()
+    # client = genai.Client()
+    first_failing_funcs = []
     programs = []
     for i in range(1):
-        response = client.models.generate_content(
-                        model="gemini-2.5-pro", contents = prompt
-                    )
-        b = response.text.strip('$')
+        # response = client.models.generate_content(
+        #                 model="gemini-2.5-pro", contents = prompt
+        #             )
+        # b = response.text.strip('$')
+        b= "COLLECT_FUNC(WOOD) ; COLLECT_FUNC(IRON) ; COLLECT_FUNC(ROCK) ; CRAFT_FUNC(KNIFE) ; CRAFT_FUNC(ARROW)"
         programs.append(b)
-        program_str, results, s, r, eval_time, task, funcs = evaluate(b)
-
+        a, program_str, results, s, r, eval_time, task, funcs = evaluate(b)
+        print("fuuncs", funcs)
         if funcs:
-            for func_name, reward in funcs:
+            actions_up_to_failure = []
+            for i, (func_name, reward, func_actions) in enumerate(funcs):
                 if reward <= 0:
-                    first_failing_funcs.add((func_name, reward))
-                    break  # Only add the first one
-        
-        # print(f"First failing function: {first_failing_funcs}")
+                    # Collect actions from all functions up to this failing one
+                    for j in range(i):
+                        actions_up_to_failure.append(funcs[j][2])  
+                    first_failing_funcs.append((func_name, reward, actions_up_to_failure, task))
+                    break  
+        # print(first_failing_funcs)
     # Run FunSearch for each failing function
     if first_failing_funcs:
-        print("\nRunning FunSearch for failing functions...")
-        for func_name, reward in first_failing_funcs:
-            base_func_name = func_name.replace("_FUNC", "").lower()
-            print(base_func_name)
+        # print("\nRunning FunSearch for failing functions...")
+        actions =[]
+        for func_name, reward, actions_up_to_failure, task in first_failing_funcs:
+            base_func_name = func_name.replace("_FUNC", "").lower()+"_base"
+            # print(base_func_name)
+            action_string = ""
+            if actions_up_to_failure:
+                print(actions_up_to_failure)
+                for actions in actions_up_to_failure:
+                    for a in actions:
+                        action_string+="env.step("+str(a)+")"+"\n  "
+            # print(action_string)
+            try:
+                with open("craft_base.txt", "r") as f:
+                    content = f.read()
+
+                # print(content )
+                
+                # Replace placeholders with actual values
+                content = content.replace("{env}", "env=env_sampler.sample_environment(task_name='make[arrow]')")
+                content = content.replace("{actions}", action_string)
+        
+                with open("craft_base.txt", "w") as f:
+                    f.write(content)
+                
+                
+            except Exception as e:
+                print(f"Failed to update craft_base.txt: {e}")
             
             with open("prompt_specifications/specification_jocelyn.txt", 'r') as f:
                  specification = f.read()
             funsearch = FunSearch(model_type='ollama')
             config = config_lib.Config()
+            
             try:
-                funsearch.run(specification, [""], config, base_func_name)
+                funsearch.run(specification, [""], config, base_func_name, "craft_func.py")
                 print(f"FunSearch completed for {func_name}")
             except Exception as e:
                 print(f"FunSearch failed for {func_name}: {e}")
-        
     return programs
 
-
-# def synthesize_priority(cfg: CFGParser, start_symbol: str, max_depth: int, json_file :str):
-#     """
-#     Priority-queue-based program synthesis up to a given depth.
-#     Evaluates only fully terminal (complete) programs.
-#     """
-#     # counter = itertools.count()
-#     queue: List[Tuple[int, int, List[str]]] = []  # (depth, count, derivation)
-
-#     heapq.heappush(queue, (0, [start_symbol]))
-
-    
-#     current_depth = 0
-#     depth_start_time = time.time()
-#     depth_counter = 0  # Counter for programs at current depth
-#     curr =[]
-#     while queue:
-        
-#         depth, current = heapq.heappop(queue)
-
-#         # When we hit a new depth, log how long the last one took
-#         if depth != current_depth:
-#             elapsed = time.time() - depth_start_time
-#             message = f"Finished enumerating depth {current_depth} in {elapsed:.4f}s (total programs: {depth_counter})"
-#             print(message)
-#             eval_pll(curr)
-#             current_depth = depth
-#             curr = []
-
-#             depth_start_time = time.time()
-#             depth_counter = 0  # Reset counter for new depth
-
-#         # Terminal check
-#         if all(is_terminal(sym, cfg) for sym in current):
-#             depth_counter += 1
-#             program_str = format_program(current)
-#             curr.append(program_str)
-
-#             # with open("enumerating_all_progs.txt", "w") as f:
-#             #     f.write(f"program:{program_str}, depth:{depth}\n")
-
-#             # for ind in range(len(envs)):
-#             #     s, r, eval_time = evaluate_program_with_evaluator(
-#             #         evaluator, program_str, envs[ind], time_limits[ind]
-#             #     # )
-#             #     results.add(1 if s else 0)
-#             #     if r>0:
-#             #         print("reward found for", tasks[ind])
-#             #         with open("solutionsrom_prog_synth.txt", "a") as f:               #       f.write(
-#             #                 f"{tasks[ind]}: {program_str}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n"
-#             #             )
-
-#             # if results == {1}:
-#             #     return
-#             continue
-
-#         if depth >= max_depth:
-#             continue
-
-#         # Expand one nonterminal
-#         for idx, sym in enumerate(current):
-#             if not is_terminal(sym, cfg):
-#                 for production in cfg.rules[sym]:
-#                   for alt in tokenize_rhs(production):
-#                         new_derivation = current[:idx] + alt + current[idx+1:]
-#                         heapq.heappush(queue , (depth + 1, new_derivation))
-#                 break
-
-#     # After the loop, log the last dep's time
-#     # elapsed = time.time() - dth_start_time
-#     # message = f"Finished emerating depth {current_depth}n {elapsed:.4f}s"
-#     # print(message)
-# #     with open("depth_log.txt", "a") as f:
-# #         f.write(message + "\n")
-# #  # Only expand the first non-terminal
-
-# #     with open("final_all.txt", "a") as f:
-# #         for program in final:
-# #             f.write(program + "\n")
-
-#     return final_programs
 
 if __name__ == "__main__":
     
@@ -285,20 +232,7 @@ if __name__ == "__main__":
     
     cfg_parser = CFGParser("cfg/cfg.txt")
     start_symbol = "s"
-    # recipes_path = "resources/recipes.yaml"
-    # hints_path = "resources/hints.yaml"
-    # env_sampler = env_factory.EnvironmentFactory(
-    #         recipes_path, hints_path, max_steps=100, 
-    #         reuse_environments=False, visualise=False)
-    # tasks =[ "make[shears]",  "make[ladder]", "make[arrow]"]
-    # time =[20, 20 , 20]
-    # envs =[]
-    # for task in tasks:
-    #     envs.append(env_sampler.sample_environment(task_name=task))
     print(f"Start symbol: {start_symbol}")
     print(f"Using JSON config file: {json_file}")
     print("\nGenerating programs (worklist)...")
-    
-    # synthesize_priority(cfg_parser, start_symbol, max_depth=20, json_file=json_file)
-
     synthesis_llm()

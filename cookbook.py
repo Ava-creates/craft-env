@@ -6,7 +6,6 @@ import yaml
 
 class Cookbook(object):
   """Holds the components of a world, and rules on how to create stuff."""
-
   def __init__(self, recipes_path):
     with open(recipes_path) as recipes_f:
       recipes = yaml.load(recipes_f, Loader=yaml.FullLoader)

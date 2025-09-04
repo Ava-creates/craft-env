@@ -15,9 +15,10 @@ def solve(env, item, visualise=False) -> float:
 @funsearch.run
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
+  #max reward is 6 for this fucntion so any craft objet that can get when it is working properly
   visualise = False
   recipes_path = "resources/recipes.yaml"
-  hints_path = "resources/hints.yaml"
+  hints_path = "resources/hints.yaml"     
   reward = 0 
   for i in range(10):
     if(i == 0):
@@ -30,7 +31,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item,  visualise=visualise)
+      reward += solve(env, item,  visualise=visualise) #should give +1
     
     elif(i==1):
       item = "stick"
@@ -40,7 +41,7 @@ def evaluate() -> float:
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
+      temp_reward = solve(env, item, visualise=visualise)  #should give 0 when it is working properly
       if temp_reward>0 :
         reward -= 0.3
       
@@ -54,7 +55,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  # +1
 
     elif(i==3):
       item = "bridge"
@@ -64,7 +65,7 @@ def evaluate() -> float:
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
+      temp_reward = solve(env, item, visualise=visualise) # 0 when working properly 
       if temp_reward>0 :
         reward -= 0.3
 
@@ -78,7 +79,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise) # +0 this does nnot work need to collect more before crafting
 
     elif(i==5):
       item = "cloth"
@@ -90,7 +91,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  #+1
 
 
     elif(i==6):
@@ -104,7 +105,7 @@ def evaluate() -> float:
       env.step(0)
       env.step(0)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise) #+1
 
     elif(i==7):
       item = "bundle"
@@ -119,7 +120,7 @@ def evaluate() -> float:
       env.step(4)
       env.step(0)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  #+1
 
     elif(i==8):
       item = "bundle"
@@ -152,13 +153,12 @@ def evaluate() -> float:
       env.step(1)
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
-
+      reward += solve(env, item, visualise=visualise)  # +1
   return reward
 
 @funsearch.evolve
 def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the needed workshop and performign the USE action. 
+  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the workshop specified in the recipe and performing the USE action. 
   
   Args:
       env (env.CraftLab): The CraftLab environment instance.
@@ -167,4 +167,3 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  return []

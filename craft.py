@@ -318,7 +318,7 @@ class CraftWorld(object):
         grid[5,9, workshop1_index] = 1
 
         
-        (gx, gy) = (6,1) #
+        (gx, gy) = (6,1) 
         treasure_index = self.cookbook.index["gold"] 
         wall_index =  self.water_index 
         grid[gx, gy, treasure_index] = 1

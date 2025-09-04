@@ -12,7 +12,6 @@ def collect(env, primitive) -> list[int]:
     state = env._current_state
     target_index = state.world.cookbook.index[primitive]
 
-    # Priority queue for BFS (position, steps, inventory, actions)
     queue = collections.deque([(state.pos, 0, np.copy(state.inventory), [])])
     visited = set()
     # print(state.pos)
