@@ -20,7 +20,7 @@ def evaluate() -> float:
   recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"     
   reward = 0 
-  for i in range(10):
+  for i in range(11):
     if(i == 0):
       item = "stick"
       env_sampler = env_factory.EnvironmentFactory(
@@ -138,7 +138,7 @@ def evaluate() -> float:
       if temp_reward>0 :
         reward -= 0.3
 
-    else:
+    elif(i==9):
       item = "goldarrow"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
@@ -154,11 +154,45 @@ def evaluate() -> float:
       env.step(1)
       env.step(4)
       reward += solve(env, item, visualise=visualise)  # +1
+
+    else:
+      recipes_path_2 = "resources/recipes_for_synth.yaml"
+      item = "arrow"
+      env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, 6, max_steps=100, 
+            reuse_environments=False, visualise=False)
+      env=env_sampler.sample_environment(task_name='make[arrow]')
+      env.reset()
+      # Actions to execute:
+      env.step(0)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(2)
+      env.step(4)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
+      reward+=solve(env, item, visualise=visualise) 
   return reward
 
 @funsearch.evolve
 def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the workshop specified in the recipe and performing the USE action. 
+  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index.This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the workshop specified in the recipe and performing the USE action. 
   
   Args:
       env (env.CraftLab): The CraftLab environment instance.
