@@ -60,8 +60,8 @@ def collect(env, primitive) -> list[int]:
         # Generate possible moves
         for i, new_pos in enumerate(adjacent_cells):
             if 0 <= new_pos[0] < state.grid.shape[0] and 0 <= new_pos[1] < state.grid.shape[1]:
-                cell_index = np.argmax(state.grid[new_pos])
-                if cell_index not in state.world.non_grabbable_indices:
+                cell_index = np.argmax(state.grid[new_pos].any())
+                if not cell_index:
                     queue.append((new_pos, steps + 1, inv, actions + [i]))
 
         # Check for tool usage

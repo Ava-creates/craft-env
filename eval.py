@@ -163,7 +163,48 @@ def evaluate() -> float:
     print(item , reward)
   return reward
 
-
+def evaluate_new_test():
+  """Evaluates a crafting policy on a sample task."""
+  visualise = False
+  recipes_path = "resources/recipes_for_synth.yaml"
+  hints_path = "resources/hints.yaml"     
+  reward = 0
+  env_sampler = env_factory.EnvironmentFactory(
+            recipes_path, hints_path, 6, max_steps=100, 
+            reuse_environments=False, visualise=False)
+  item = "arrow"
+  
+  # Environment setup:
+  env=env_sampler.sample_environment(task_name='make[arrow]')
+  
+  # Actions to execute:
+  env.step(0)
+  env.step(2)
+  env.step(2)
+  env.step(4)
+  env.step(0)
+  env.step(0)
+  env.step(0)
+  env.step(0)
+  env.step(0)
+  env.step(0)
+  env.step(2)
+  env.step(4)
+  env.step(2)
+  env.step(2)
+  env.step(2)
+  env.step(2)
+  env.step(2)
+  env.step(2)
+  env.step(2)
+  env.step(4)
+  env.step(1)
+  env.step(1)
+  env.step(4)
+  # ===== IDENTIFIABLE_BLOCK_END =====
+  reward = solve(env, item, visualise=visualise)  # +1
+  return reward
+  
 def craft(env, item):
   def get_direction(dx, dy):
       if dx > 0:
@@ -225,6 +266,7 @@ def craft(env, item):
 
   # Use the workshop to craft the item
   actions.append(4)  # USE
+  print(actions)
   return actions
 
 print(evaluate()) 

@@ -23,6 +23,7 @@ def evaluate() -> float:
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
   item = "arrow"
+  
   # Environment setup:
   env=env_sampler.sample_environment(task_name='make[arrow]')
   

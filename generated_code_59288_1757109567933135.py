@@ -361,47 +361,183 @@ def solve(env, item, visualise=False) -> float:
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
   visualise = False
-  recipes_path = "resources/recipes_for_synth.yaml"
+  recipes_path = "resources/recipes.yaml"
   hints_path = "resources/hints.yaml"     
-  reward = 0
-  env_sampler = env_factory.EnvironmentFactory(
+  reward = 0 
+  for i in range(11):
+    if(i == 0):
+      item = "stick"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item,  visualise=visualise) #should give +1
+    
+    elif(i==1):
+      item = "stick"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env.reset()
+      temp_reward = solve(env, item, visualise=visualise)  #should give 0 when it is working properly
+      if temp_reward>0 :
+        reward -= 0.3
+      
+    elif(i==2):
+      item = "bridge"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)  # +1
+
+    elif(i==3):
+      item = "bridge"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+      temp_reward = solve(env, item, visualise=visualise) # 0 when working properly 
+      if temp_reward>0 :
+        reward -= 0.3
+
+    elif(i==4):
+      item = "plank"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[plank]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise) # +0 this does nnot work need to collect more before crafting
+
+    elif(i==5):
+      item = "cloth"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 3, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[cloth]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)  #+1
+
+
+    elif(i==6):
+      item = "rope"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 4, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[rope]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise) #+1
+
+    elif(i==7):
+      item = "bundle"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+      env.step(0)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)  #+1
+
+    elif(i==8):
+      item = "bundle"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      env.step(0)
+      env.step(0)
+      env.step(4)
+
+      temp_reward = solve(env, item, visualise=visualise)
+      if temp_reward>0 :
+        reward -= 0.3
+
+    elif(i==9):
+      item = "goldarrow"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
+      reward += solve(env, item, visualise=visualise)  # +1
+
+    else:
+      recipes_path_2 = "resources/recipes_for_synth.yaml"
+      item = "arrow"
+      env_sampler = env_factory.EnvironmentFactory(
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
-  item = "arrow"
-  # Environment setup:
-  env=env_sampler.sample_environment(task_name='make[arrow]')
-  
-  # Actions to execute:
-  env.step(0)
-  env.step(2)
-  env.step(2)
-  env.step(4)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(2)
-  env.step(4)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(4)
-  env.step(1)
-  env.step(1)
-  env.step(4)
-  # ===== IDENTIFIABLE_BLOCK_END =====
-  reward = solve(env, item, visualise=visualise)  # +1
+      env=env_sampler.sample_environment(task_name='make[arrow]')
+      env.reset()
+      # Actions to execute:
+      env.step(0)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(2)
+      env.step(4)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
+      reward+=solve(env, item, visualise=visualise) 
+      
   return reward
 
 
 def craft(env, item) -> list[int]:
-  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index. This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the needed workshop and performign the USE action. 
+  """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index.This function assumes we have all the items/ primitves required for crafting the passed item in the inventory. This function ONLY needs to craft the item by going to the workshop specified in the recipe and performing the USE action. 
   
   Args:
       env (env.CraftLab): The CraftLab environment instance.
@@ -410,72 +546,82 @@ def craft(env, item) -> list[int]:
   Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
-  def get_direction(dx, dy):
-      if dx > 0:
-          return 3  # RIGHT
-      elif dx < 0:
-          return 2  # LEFT
-      elif dy > 0:
-          return 1  # UP
-      else:
-          return 0  # DOWN
-
-  cookbook = env.world.cookbook
-  goal_index = cookbook.index[item]
-
-  if goal_index is None:
-      raise ValueError("Unknown item")
-
-  workshop_indices = env.world.workshop_indices
-
-  actions = []
-
-  # Find the closest workshop that can craft the desired item
-  closest_workshop_idx, min_distance = None, float('inf')
-  pos = np.array(env._current_state.pos)
-
-  for workshop_idx in workshop_indices:
-      # Calculate the mean position of all workshops of this type
-      workshop_pos_list = np.argwhere(env._current_state.grid[:, :, workshop_idx])
-
-      if len(workshop_pos_list) > 0:  # Check if there is any location for the workshop
-          workshop_pos_mean = workshop_pos_list.mean(axis=0)
-          distance = np.linalg.norm(pos - workshop_pos_mean, ord=2)
-          if distance < min_distance:
-              closest_workshop_idx, min_distance = workshop_idx, distance
-
-  if closest_workshop_idx is None:
-      raise ValueError("No available workshop found")
-
-  # Calculate the closest position to move towards
-  target_positions = np.argwhere(env._current_state.grid[:, :, closest_workshop_idx])
-  nearest_target_pos = None
-  min_nearest_distance = float('inf')
-
-  for target_pos in target_positions:
-      distance = np.linalg.norm(pos - target_pos, ord=2)
-      if distance < min_nearest_distance:
-          nearest_target_pos = target_pos
-          min_nearest_distance = distance
-
-  # Move to the closest workshop position
-  while not np.array_equal(pos, nearest_target_pos):
-      dx, dy = nearest_target_pos - pos
-      direction = get_direction(dx, dy)
-      actions.append(direction)
+  def get_workshop_index(item_index):
+    # Get the recipe for the item
+    recipe = env.world.cookbook.recipes.get(item_index)
+    
+    if not recipe:
+        raise ValueError(f"No recipe found for item index: {item_index}")
       
-      # Update position based on current direction and check if we've reached the target
-      if abs(dx) >= abs(dy):  # Prioritize moving in x-direction first
-          pos[0] += 1 if dx > 0 else -1
-      else:  # Then move in y-direction
-          pos[1] += 1 if dy > 0 else -1
-      
-      # Check proximity to the target position and stop if we're close enough
-      if np.linalg.norm(pos - nearest_target_pos, ord=2) < 1:
-          break
+    # Find the workshop type needed based on "_key" value
+    workshop_type_key = "_key"
+    workshop_type_value = recipe.get(workshop_type_key)
 
-  # Use the workshop to craft the item
-  actions.append(4)  # USE
+    if not workshop_type_value:
+        raise ValueError(f"No workshop key specified in recipe for item index: {item_index}")
+
+    # Check if workshop type exists and get its index
+    workshop_name = f"workshop{workshop_type_value}"
+    workshop_index = env.world.cookbook.index.get(workshop_name)
+
+    if not workshop_index:
+        raise ValueError(f"No workshop found with name: {workshop_name}")
+    
+    return workshop_index
+
+  def move_to_workshop(workshop_index):
+    # Get the position of the nearest workshop of the specified type
+    grid = env._current_state.grid
+    workshop_positions = np.argwhere(grid[:, :, workshop_index] == 1)
+  
+    if not workshop_positions.any():
+        raise ValueError(f"No available workshops found with index: {workshop_index}")
+
+    # Calculate Manhattan distance from current position to all workshop positions
+    pos_x, pos_y = env._current_state.pos
+    distances = np.sum(np.abs(workshop_positions - [pos_x, pos_y]), axis=1)
+    
+    # Get the nearest workshop position
+    nearest_workshop_pos = workshop_positions[np.argmin(distances)]
+  
+    # Generate actions to move towards the nearest workshop
+    actions = []
+    while not (env._current_state.pos == tuple(nearest_workshop_pos)).all():
+      # Find the next step towards the nearest workshop
+      direction_vector = nearest_workshop_pos - np.array(env._current_state.pos)
+      
+      if direction_vector[0] < 0:
+          actions.append(craft.MOVE_LEFT)
+      elif direction_vector[0] > 0:
+          actions.append(craft.MOVE_RIGHT)
+      elif direction_vector[1] < 0:
+          actions.append(craft.MOVE_UP)
+      else: # direction_vector[1] > 0
+          actions.append(craft.MOVE_DOWN)
+      
+      env.step(actions[-1])
+    
+    return actions
+
+  def perform_craft():
+    # Perform the USE action to craft the item at the workshop
+    return [craft.USE]
+
+  # Get the index of the desired item
+  item_index = env.world.cookbook.index.get(item)
+
+  if not item_index:
+      raise ValueError(f"No item found with name: {item}")
+  
+  # Get the index of the required workshop for crafting
+  workshop_index = get_workshop_index(item_index)
+  
+  # Generate actions to move to the nearest workshop
+  actions = move_to_workshop(workshop_index)
+
+  # Append the USE action to craft the item
+  actions.extend(perform_craft())
+
   return actions
 
  
