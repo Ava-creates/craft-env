@@ -34,7 +34,7 @@ recipes:
   arrow:
     knife: 1
     wood: 1
-    _at: workshop0
+    _at: workshop2
 
   goldarrow:
     gold: 1

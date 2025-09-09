@@ -20,13 +20,39 @@ def run_loop(env, n_steps, visualise=False):
   #   print("Initial observations:", observations)
   # print("VDFS \n", env.world.cookbook.index, "\n")
   # actions=[3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 4]
-  actions =[0, 2, 4, 0, 0, 0, 0, 0, 0, 2, 4, 2, 2, 2, 1, 2, 1, 2, 2, 4]
-  # actions = [0,0,4, 0, 4,1, 1, 1, 3, 1, 3, 1, 3, 1, 3, 4]
+  actions =[0,2,2,4,0,0,0,0,0,0,2,4,2,2,2,2,2,2,2,4,1,1,4,2, 2, 2, 2, 2, 2, 0, 4]
   time.sleep(4)
+  if False:
+      env.step(0)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(2)
+      env.step(4)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)  
+      print(env._current_state.inventory)
+
   for t in range(len(actions)):
     # Random action
     # print("hehe")
     # action = np.random.choice(possible_actions.values())
+    print(env._current_state.inventory)
     action = actions[t]
     # Step (this will plot if visualise is True)
     reward, done, observations = env.step(action)
@@ -51,13 +77,18 @@ def run_loop(env, n_steps, visualise=False):
 
 def main():
   visualise = True
-  recipes_path = "resources/recipes_for_synth.yaml"
+  # recipes_path = "resources/recipes_for_synth.yaml"
   hints_path = "resources/hints.yaml"
+  # env_sampler = env_factory.EnvironmentFactory(
+  #     recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
+  #     visualise=visualise)
+  recipes_path_2 = "resources/recipes_for_synth.yaml"
+  item = "arrow"
   env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
-      visualise=visualise)
-
-  env = env_sampler.sample_environment(task_name='make[knife]')
+            recipes_path_2, hints_path, 6, max_steps=100, 
+            reuse_environments=False, visualise=True)
+  env=env_sampler.sample_environment(task_name='make[arrow]')
+  # env = env_sampler.sample_environment(task_name='make[knife]')
   print("Environment: task {}: {}".format(env.task_name, env.task))
   run_loop(env, 100 * 3, visualise=visualise)
 

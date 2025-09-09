@@ -15,16 +15,17 @@ def solve(env, item, visualise=False) -> float:
     total_reward += reward
     if done:
       break
-
+  print(item, total_reward, actions_to_take)
   return total_reward
 
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
+  #max reward is 6 for this fucntion so any craft objet that can get when it is working properly
   visualise = False
   recipes_path = "resources/recipes.yaml"
-  hints_path = "resources/hints.yaml"
+  hints_path = "resources/hints.yaml"     
   reward = 0 
-  for i in range(10):
+  for i in range(11):
     if(i == 0):
       item = "stick"
       env_sampler = env_factory.EnvironmentFactory(
@@ -35,7 +36,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item,  visualise=visualise)
+      reward += solve(env, item,  visualise=visualise) #should give +1
     
     elif(i==1):
       item = "stick"
@@ -45,7 +46,7 @@ def evaluate() -> float:
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
+      temp_reward = solve(env, item, visualise=visualise)  #should give 0 when it is working properly
       if temp_reward>0 :
         reward -= 0.3
       
@@ -59,9 +60,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  # 0 when working properly
 
     elif(i==3):
       item = "bridge"
@@ -71,7 +70,7 @@ def evaluate() -> float:
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)
+      temp_reward = solve(env, item, visualise=visualise) # 0 when working properly 
       if temp_reward>0 :
         reward -= 0.3
 
@@ -85,7 +84,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise) # +0 this does nnot work need to collect more before crafting
 
     elif(i==5):
       item = "cloth"
@@ -97,7 +96,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  #+1
 
 
     elif(i==6):
@@ -111,7 +110,7 @@ def evaluate() -> float:
       env.step(0)
       env.step(0)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise) #+1
 
     elif(i==7):
       item = "bundle"
@@ -126,7 +125,7 @@ def evaluate() -> float:
       env.step(4)
       env.step(0)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
+      reward += solve(env, item, visualise=visualise)  #+1
 
     elif(i==8):
       item = "bundle"
@@ -144,7 +143,7 @@ def evaluate() -> float:
       if temp_reward>0 :
         reward -= 0.3
 
-    else:
+    elif(i==9):
       item = "goldarrow"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
@@ -159,63 +158,45 @@ def evaluate() -> float:
       env.step(1)
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)
-    print(item , reward)
-  return reward
+      reward += solve(env, item, visualise=visualise)  # +1
 
-def evaluate_new_test():
-  """Evaluates a crafting policy on a sample task."""
-  visualise = False
-  recipes_path = "resources/recipes_for_synth.yaml"
-  hints_path = "resources/hints.yaml"     
-  reward = 0
-  env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, 6, max_steps=100, 
+    else:
+      recipes_path_2 = "resources/recipes_for_synth.yaml"
+      item = "arrow"
+      env_sampler = env_factory.EnvironmentFactory(
+            recipes_path_2, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
-  item = "arrow"
-  
-  # Environment setup:
-  env=env_sampler.sample_environment(task_name='make[arrow]')
-  
-  # Actions to execute:
-  env.step(0)
-  env.step(2)
-  env.step(2)
-  env.step(4)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(0)
-  env.step(2)
-  env.step(4)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(2)
-  env.step(4)
-  env.step(1)
-  env.step(1)
-  env.step(4)
-  # ===== IDENTIFIABLE_BLOCK_END =====
-  reward = solve(env, item, visualise=visualise)  # +1
+      env=env_sampler.sample_environment(task_name='make[arrow]')
+      env.reset()
+      # Actions to execute:
+      env.step(0)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(0)
+      env.step(2)
+      env.step(4)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(2)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
+      reward+=solve(env, item, visualise=visualise) 
+      
   return reward
   
 def craft(env, item):
-  def get_direction(dx, dy):
-      if dx > 0:
-          return 3  # RIGHT
-      elif dx < 0:
-          return 2  # LEFT
-      elif dy > 0:
-          return 1  # UP
-      else:
-          return 0  # DOWN
-
   cookbook = env.world.cookbook
   goal_index = cookbook.index[item]
 
@@ -227,46 +208,39 @@ def craft(env, item):
   actions = []
 
   # Find the closest workshop that can craft the desired item
-  closest_workshop_idx, min_distance = None, float('inf')
   pos = np.array(env._current_state.pos)
+  min_distance = float('inf')
+  target_workshop_pos = None
 
   for workshop_idx in workshop_indices:
-      # Calculate the mean position of all workshops of this type
-      workshop_pos_list = np.argwhere(env._current_state.grid[:, :, workshop_idx])
+      workshop_positions = np.argwhere(env._current_state.grid[:, :, workshop_idx])
 
-      if len(workshop_pos_list) > 0:  # Check if there is any location for the workshop
-          workshop_pos_mean = workshop_pos_list.mean(axis=0)
-          distance = np.linalg.norm(pos - workshop_pos_mean, ord=2)
-          if distance < min_distance:
-              closest_workshop_idx, min_distance = workshop_idx, distance
+      if len(workshop_positions) > 0:  # Check if there is any location for the workshop
+          for wp in workshop_positions:
+              distance = np.linalg.norm(pos - wp, ord=2)
+              if distance < min_distance:
+                  min_distance = distance
+                  target_workshop_pos = wp
 
-  if closest_workshop_idx is None:
+  if target_workshop_pos is None:
       raise ValueError("No available workshop found")
 
-  # Calculate the closest position to move towards
-  target_positions = np.argwhere(env._current_state.grid[:, :, closest_workshop_idx])
-  nearest_target_pos = None
-  min_nearest_distance = float('inf')
-
-  for target_pos in target_positions:
-      distance = np.linalg.norm(pos - target_pos, ord=2)
-      if distance < min_nearest_distance:
-          nearest_target_pos = target_pos
-          min_nearest_distance = distance
-
   # Move to the closest workshop position
-  while not np.array_equal(pos, nearest_target_pos):
-      dx, dy = nearest_target_pos - pos
-      direction = get_direction(dx, dy)
-      actions.append(direction)
-      if abs(dx) >= abs(dy):  # Prioritize moving in x-direction first
+  while not np.array_equal(pos, target_workshop_pos):
+      dx, dy = target_workshop_pos - pos
+      dir_x = 3 if dx > 0 else (2 if dx < 0 else None)
+      dir_y = 1 if dy > 0 else (0 if dy < 0 else None)
+
+      # Determine direction to move in, prioritize x-direction first
+      if dir_x is not None:
+          actions.append(dir_x)
           pos[0] += 1 if dx > 0 else -1
-      else:  # Then move in y-direction
+      elif dir_y is not None:
+          actions.append(dir_y)
           pos[1] += 1 if dy > 0 else -1
 
   # Use the workshop to craft the item
   actions.append(4)  # USE
-  print(actions)
   return actions
 
 print(evaluate()) 
