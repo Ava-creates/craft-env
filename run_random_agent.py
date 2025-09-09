@@ -20,9 +20,9 @@ def run_loop(env, n_steps, visualise=False):
   #   print("Initial observations:", observations)
   # print("VDFS \n", env.world.cookbook.index, "\n")
   # actions=[3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 4]
-  actions =[0,2,2,4,0,0,0,0,0,0,2,4,2,2,2,2,2,2,2,4,1,1,4,2, 2, 2, 2, 2, 2, 0, 4]
+  actions =[2, 1, 1, 3, 1, 1, 2, 4, 4]
   time.sleep(4)
-  if False:
+  if True:
       env.step(0)
       env.step(2)
       env.step(2)
@@ -47,7 +47,8 @@ def run_loop(env, n_steps, visualise=False):
       env.step(1)
       env.step(4)  
       print(env._current_state.inventory)
-
+  a = {tuple(pos) for pos in np.argwhere(env._current_state.grid[:,:,4])}
+  print(a)
   for t in range(len(actions)):
     # Random action
     # print("hehe")

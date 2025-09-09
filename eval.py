@@ -84,7 +84,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise) # +0 this does nnot work need to collect more before crafting
+      reward += solve(env, item, visualise=visualise) # +1 this does nnot work need to collect more before crafting
 
     elif(i==5):
       item = "cloth"
@@ -196,51 +196,125 @@ def evaluate() -> float:
       
   return reward
   
+
+
 def craft(env, item):
-  cookbook = env.world.cookbook
-  goal_index = cookbook.index[item]
+    """
+    Generates a sequence of actions to move to the correct workshop,
+    face it, and craft the specified item.
+    """
+    cookbook = env.world.cookbook
+    state = env._current_state
+    grid = state.grid
+    start_pos = tuple(state.pos)
 
-  if goal_index is None:
-      raise ValueError("Unknown item")
+    # 1. Get Recipe & Required Workshop from the cookbook
+    goal_index = cookbook.index[item]
+    if goal_index is None:
+        raise ValueError(f"Unknown item: {item}")
 
-  workshop_indices = env.world.workshop_indices
+    recipe = cookbook.recipes.get(goal_index)
+    if not recipe:
+        raise ValueError(f"No recipe found for item: {item}")
 
-  actions = []
+    workshop_name = recipe.get('_at')
+    if not workshop_name:
+        raise ValueError(f"Recipe for {item} does not specify a workshop.")
+    
+    required_workshop_idx = cookbook.index[workshop_name]
+    if required_workshop_idx is None:
+        raise ValueError(f"Unknown workshop: {workshop_name}")
 
-  # Find the closest workshop that can craft the desired item
-  pos = np.array(env._current_state.pos)
-  min_distance = float('inf')
-  target_workshop_pos = None
+    # 2. Find all valid target cells (empty cells adjacent to the correct workshop)
+    workshop_locations = np.argwhere(grid[:, :, required_workshop_idx])
+    if workshop_locations.size == 0:
+        raise ValueError(f"No '{workshop_name}' found on the grid.")
 
-  for workshop_idx in workshop_indices:
-      workshop_positions = np.argwhere(env._current_state.grid[:, :, workshop_idx])
+    # Map of {agent_target_pos: corresponding_workshop_pos}
+    target_map = {}
+    for wx, wy in workshop_locations:
+        # Check 4-directional neighbors
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nx, ny = wx + dx, wy + dy
+            # Check if neighbor is valid and empty
+            if 0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1] and not np.any(grid[nx, ny, :]):
+                target_map[(nx, ny)] = (wx, wy)
+    
+    if not target_map:
+        raise ValueError(f"No accessible cells next to any '{workshop_name}'.")
+    
+    # 3. Pathfinding using Breadth-First Search (BFS)
+    # The BFS finds the shortest path of actions to the nearest valid target cell.
+    
+    # Action mapping: 0=DOWN, 1=UP, 2=LEFT, 3=RIGHT
+    # Maps a delta (dx, dy) to a specific action
+    action_map = {(0, -1): 0, (0, 1): 1, (-1, 0): 2, (1, 0): 3}
+    
+    # Queue stores tuples of (current_position, list_of_actions_to_get_here)
+    queue = collections.deque([(start_pos, [])])
+    visited = {start_pos}
+    
+    path_actions = []
+    final_agent_pos = None
+    final_workshop_pos = None
 
-      if len(workshop_positions) > 0:  # Check if there is any location for the workshop
-          for wp in workshop_positions:
-              distance = np.linalg.norm(pos - wp, ord=2)
-              if distance < min_distance:
-                  min_distance = distance
-                  target_workshop_pos = wp
+    # Handle edge case: agent is already next to the workshop
+    if start_pos in target_map:
+        path_actions = []
+        final_agent_pos = start_pos
+        final_workshop_pos = target_map[start_pos]
+    else:
+        found_path = False
+        while queue:
+            (cx, cy), current_actions = queue.popleft()
 
-  if target_workshop_pos is None:
-      raise ValueError("No available workshop found")
+            # Explore neighbors
+            for (dx, dy), action in action_map.items():
+                nx, ny = cx + dx, cy + dy
+                
+                if (nx, ny) in visited:
+                    continue
+                
+                # Check boundaries and if the cell is empty (not an obstacle)
+                is_valid = (0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1])
+                if is_valid and not np.any(grid[nx, ny, :]):
+                    visited.add((nx, ny))
+                    new_actions = current_actions + [action]
+                    
+                    # If neighbor is a target, we found the shortest path
+                    if (nx, ny) in target_map:
+                        path_actions = new_actions
+                        final_agent_pos = (nx, ny)
+                        final_workshop_pos = target_map[(nx, ny)]
+                        found_path = True
+                        break 
+                    
+                    queue.append(((nx, ny), new_actions))
+            if found_path:
+                break
 
-  # Move to the closest workshop position
-  while not np.array_equal(pos, target_workshop_pos):
-      dx, dy = target_workshop_pos - pos
-      dir_x = 3 if dx > 0 else (2 if dx < 0 else None)
-      dir_y = 1 if dy > 0 else (0 if dy < 0 else None)
+    if final_agent_pos is None:
+        raise RuntimeError(f"Could not find a path to a '{workshop_name}'.")
 
-      # Determine direction to move in, prioritize x-direction first
-      if dir_x is not None:
-          actions.append(dir_x)
-          pos[0] += 1 if dx > 0 else -1
-      elif dir_y is not None:
-          actions.append(dir_y)
-          pos[1] += 1 if dy > 0 else -1
+    # 4. Generate Final Turn and USE Actions
+    actions = list(path_actions)
+    
+    agent_x, agent_y = final_agent_pos
+    workshop_x, workshop_y = final_workshop_pos
 
-  # Use the workshop to craft the item
-  actions.append(4)  # USE
-  return actions
+    # Determine direction to face and the corresponding action.
+    # This action "bumps" into the workshop, setting the agent's direction correctly.
+    face_action = -1
+    if workshop_y > agent_y: face_action = 1 # Face UP
+    elif workshop_y < agent_y: face_action = 0 # Face DOWN
+    elif workshop_x > agent_x: face_action = 3 # Face RIGHT
+    elif workshop_x < agent_x: face_action = 2 # Face LEFT
+    
+    if face_action != -1:
+        actions.append(face_action)
+    
+    # Finally, append the USE action to craft the item
+    actions.append(4)
 
+    return actions
 print(evaluate()) 

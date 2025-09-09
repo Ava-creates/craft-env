@@ -2,10 +2,30 @@
 You are an expert in solving tasks some simulation environments using programmatic strategies. You will be given the details on the simulation environment (in the form of its code base), a domain-specific language (DSL) that is designed to solve the task in a compositional way, and you will be asked to come up with the implementation of specific functions in the DSL to using the provided code base. You are safe to assume that other than the function we ask you to implement, the rest of the constructs in the DSL are already implemented properly. 
 
 ##Natural Language Description of Craft
-Consider a grid environment with dimensions n by n, representing height and width, and i different types of items in the inventory. Each cell in the n x n grid holds a list (or vector) of length i, where each position corresponds to a specific item. If a cell contains an item, its position in the list is marked as 1; otherwise, it is 0.
-An agent can move around the n x n grid, but it cannot enter any cell that contains any item (i.e., any cell where at least one entry in the inventory list is 1 is blocked). The agent’s movement is limited to empty cells where no items are present.
-At the beginning of each episode, the agent is placed at a starting position in the grid, and the inventory distribution (which items are where) is set. The tasks involve either getting a primittive or getting an item.
+The environment is a grid world of size 𝑛×𝑛. Each cell contains an inventory vector of length i, where each position corresponds to a possible item type. If a cell contains an item, its corresponding entry is marked as 1; otherwise, it is 0. A cell is considered blocked if it contains any item, meaning the agent cannot move into it. The agent can only move around freely through empty cells.
 
+At the beginning of each episode, the agent is placed at a starting position and a distribution of items across the grid is initialized. The agent’s tasks involve either collecting primitives (raw resources) or crafting items.
+
+The environment contains both natural terrain and functional structures, such as boundaries, water, stone deposits, and different workshops (workshop0, workshop1, workshop2).
+An item can only be crafted at the workshop mentioned in its recipe.
+Primitives are basic resources like iron, grass, gold, and gem.
+
+Crafted items are produced from primitives (or other crafted items) by following recipes. Each recipe specifies which inputs are required and at which workshop the crafting must occur. For example:
+A plank requires 1 wood at workshop0.
+A rope requires 1 grass at workshop0.
+A bridge requires 1 wood and 1 iron at workshop1.
+A knife requires 1 iron and 1 rock at workshop2.
+
+More complex items, such as axe, or flag, require intermediate items along with primitives, and must be crafted at the appropriate workshop. This all is specificed in the recipe file of the environment.
+
+Thus, the agent must navigate the grid, collect primitives, and visit the correct workshops to craft higher-level items according to the recipes
+
+eg of recipe in the actual file:
+  cloth:
+    grass: 1
+    _at: workshop2
+
+In order to use the workshops or use USE action to collect stuff the must be facing the block and not just be adjacent to it.
 ## Code base for the game
 The code base contains the following information:
 - Classes: Each class includes informations about data attributes, class constructors and functions. We also provide information about the inputs to the constructors, and inputs, outputs and type signatures of the functions. 

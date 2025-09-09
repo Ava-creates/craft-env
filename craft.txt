@@ -55,7 +55,7 @@ def evaluate() -> float:
       env.reset()
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)  # +1
+      reward += solve(env, item, visualise=visualise)  # 0
 
     elif(i==3):
       item = "bridge"
