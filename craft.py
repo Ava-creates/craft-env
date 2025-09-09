@@ -516,11 +516,11 @@ class CraftState(object):
         elif thing in self.world.workshop_indices:
           # TODO not with strings
           workshop = cookbook.index.get(thing)
-          print("this is in craftstate in craft.py)")
-          print("workshop", workshop)
+          # print("this is in craftstate in craft.py)")
+          # print("workshop", workshop)
           for output, inputs in cookbook.recipes.items():
-            print("inputs", inputs)
-            print("output", output)
+            # print("inputs", inputs)
+            # print("output", output)
             if inputs["_at"] != workshop:
               continue
             yld = inputs["_yield"] if "_yield" in inputs else 1
@@ -530,7 +530,7 @@ class CraftState(object):
             n_inventory[output] += yld
             for i in ing:
               n_inventory[i] -= inputs[i]
-            print("n_inventory", n_inventory)
+            # print("n_inventory", n_inventory)
             success = True
 
         # elif thing == self.world.water_index:

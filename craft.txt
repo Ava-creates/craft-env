@@ -186,7 +186,7 @@ def evaluate() -> float:
       env.step(4)
       env.step(1)
       env.step(1)
-      env.step(4)
+      env.step(4) #this results in knife
       reward+=solve(env, item, visualise=visualise) 
       
   return reward
