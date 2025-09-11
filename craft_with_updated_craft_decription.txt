@@ -162,10 +162,10 @@ def evaluate() -> float:
 def craft(env, item) -> list[int]:
   """Returns a list of actions to craft the item which is the index of the item in the env.world.cookbook.index.This function checks if we have all the items/ primitves required for crafting, if not then it return empty action list if yes then it proceeds to craft the item by going to the workshop specified in the recipe and performing the USE action. 
   
-  Args:
+     Args:
       env (env.CraftLab): The CraftLab environment instance.
       item (str): The name of the item to craft.
 
-  Returns:
+     Returns:
       List[int]: A list of action indices the agent can execute to craft the item.
   """
