@@ -197,8 +197,145 @@ def evaluate() -> float:
   return reward
   
 
+ACTION_MAP = {'DOWN': 0, 'UP': 1, 'LEFT': 2, 'RIGHT': 3, 'USE': 4}
+
 
 def craft(env, item):
+    """
+    Generates a sequence of actions to navigate to the correct workshop,
+    face it, and craft the specified item.
+
+    This function implements a robust strategy by:
+    1. Identifying the specific workshop required by the item's recipe.
+    2. Finding all empty, accessible cells adjacent to that workshop type.
+    3. Using Breadth-First Search (BFS) to find the shortest, obstacle-free
+       path to one of these adjacent cells.
+    4. Generating actions to turn the agent to face the workshop.
+    5. Appending the 'USE' action to perform the craft.
+    """
+    cookbook = env.world.cookbook
+    state = env._current_state
+
+    # 1. Look up item and its recipe to find the required workshop
+    goal_index = cookbook.index[item]
+    if goal_index is None or goal_index not in cookbook.recipes:
+        raise ValueError(f"Item '{item}' is not craftable or does not exist.")
+
+    recipe = cookbook.recipes[goal_index]
+    workshop_name = recipe['_at']
+    workshop_index = cookbook.index[workshop_name]
+
+    # 2. Get current environment state for pathfinding
+    grid = state.grid
+    # Use (y, x) convention for position, matching numpy's (row, col) indexing
+    start_pos = tuple(state.pos)
+    grid_height, grid_width = grid.shape[0], grid.shape[1]
+
+    # A cell is considered blocked if it contains any object.
+    blocked = grid.sum(axis=2) > 0
+
+    # 3. Find all valid target positions (empty cells adjacent to the workshop)
+    workshop_locations = np.argwhere(grid[:, :, workshop_index])
+    if workshop_locations.shape[0] == 0:
+        raise ValueError(f"Required workshop '{workshop_name}' not found in the environment.")
+
+    valid_targets = set()
+    for ws_pos in workshop_locations:
+        y, x = ws_pos
+        # Check 4 neighbors (UP, DOWN, LEFT, RIGHT)
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            adj_pos = (y + dy, x + dx)
+            # Check if neighbor is within bounds and is not blocked
+            if (0 <= adj_pos[0] < grid_height and
+                0 <= adj_pos[1] < grid_width and
+                not blocked[adj_pos[0], adj_pos[1]]):
+                valid_targets.add(adj_pos)
+
+    if not valid_targets:
+        raise RuntimeError(f"No accessible cells next to workshop '{workshop_name}'.")
+
+    # 4. Pathfind using BFS to the nearest valid target cell
+    # Action mapping: 0:DOWN, 1:UP, 2:LEFT, 3:RIGHT
+    # Corresponding (dy, dx) deltas for (y, x) coordinates:
+    action_deltas = {
+        0: (1, 0),   # DOWN (y increases)
+        1: (-1, 0),  # UP (y decreases)
+        2: (0, -1),  # LEFT (x decreases)
+        3: (0, 1),   # RIGHT (x increases)
+    }
+    # Reverse mapping from delta to action for the orientation step
+    delta_to_action = {v: k for k, v in action_deltas.items()}
+
+    queue = collections.deque([(start_pos, [])])  # Stores (position, path_of_actions)
+    visited = {start_pos}
+
+    path_to_target = None
+    final_pos = None
+
+    # Handle the case where the agent is already at a target position
+    if start_pos in valid_targets:
+        path_to_target = []
+        final_pos = start_pos
+    else:
+        while queue:
+            current_pos, path = queue.popleft()
+
+            for action, (dy, dx) in action_deltas.items():
+                next_pos = (current_pos[0] + dy, current_pos[1] + dx)
+
+                if not (0 <= next_pos[0] < grid_height and 0 <= next_pos[1] < grid_width):
+                    continue
+                if next_pos in visited:
+                    continue
+                
+                if next_pos in valid_targets:
+                    path_to_target = path + [action]
+                    final_pos = next_pos
+                    queue.clear()  # Path found, stop searching
+                    break
+                
+                if not blocked[next_pos[0], next_pos[1]]:
+                    visited.add(next_pos)
+                    queue.append((next_pos, path + [action]))
+
+    if path_to_target is None:
+        raise RuntimeError(f"Could not find a path to an accessible spot near '{workshop_name}'.")
+    
+    # 5. Determine orientation and add actions to face the workshop
+    
+    # Find the specific workshop cell that `final_pos` is adjacent to
+    target_workshop_pos = None
+    for ws_pos in workshop_locations:
+        ws_y, ws_x = ws_pos
+        if abs(ws_y - final_pos[0]) + abs(ws_x - final_pos[1]) == 1:
+            target_workshop_pos = (ws_y, ws_x)
+            break
+    
+    # Determine the direction the agent needs to face
+    dy = target_workshop_pos[0] - final_pos[0]
+    dx = target_workshop_pos[1] - final_pos[1]
+    target_action_for_facing = delta_to_action[(dy, dx)]
+    
+    # The agent's direction after the path is its last move action.
+    # If the path is empty, the agent hasn't moved, so use its current direction.
+    agent_dir_at_target = state.dir if not path_to_target else path_to_target[-1]
+    
+    final_actions = list(path_to_target)
+    
+    # If not already facing the workshop, perform a turn-in-place maneuver.
+    # This involves moving to an adjacent cell and immediately moving back.
+    if agent_dir_at_target != target_action_for_facing:
+        opposites = {0: 1, 1: 0, 2: 3, 3: 2}  # DOWN/UP, LEFT/RIGHT
+        turn_action_1 = opposites[target_action_for_facing]
+        turn_action_2 = target_action_for_facing
+        final_actions.extend([turn_action_1, turn_action_2])
+        
+    # 6. Add the USE action to perform the craft
+    final_actions.append(4)  # USE
+    
+    return final_actions
+    
+def craft_perfect(env, item):
     """
     Generates a sequence of actions to move to the correct workshop,
     face it, and craft the specified item.

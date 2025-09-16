@@ -17,7 +17,7 @@ primitives:
 recipes:
   plank:
     wood: 1
-    _at: workshop0
+    _at: workshop0 
 
   stick:
     wood: 1

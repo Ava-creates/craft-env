@@ -3,17 +3,44 @@ You are an expert in solving tasks some simulation environments using programmat
 
 ##Natural Language Description of Craft
 
-Craft is a single-agent game in a pre-specified environment. 
-The environment of craft is a grid world of size n * n. Each cell can be empty, contain an item, or part of natural terrain or functional structures. When the cell is nonempty, it is considered as blocked. A agent can move around the environment freely through empty cells. At each step, the agent can either move or perform a specific actions, such as collect or craft, towards the immediate cell that it is facing towards. 
-At the beginning of each episode, the agent is placed at a starting cell and a distribution of items across the grid is initialized. The agent’s tasks involve either collecting primitives (raw resources) or crafting items. A item can only be crafted at the specific workshop mentioned in the recipes. 
-The item to be craft are produced from primitives (or other crafted items) by following recipes. Each recipe specifies which items are required and at which workshop the crafting must occur. A primitive item might not need to be crafted but just collected. More complex items, such as axe, or flag, require intermediate items along with primitives. This all is specified in the recipe file of the environment. Please note a item can only be crafted at the specific workshop mentioned in the recipes. 
+### Environment
+- Grid world of size *n × n*.  
+- Each cell can be:  
+  - Empty (free movement),  
+  - Contain an item,  
+  - Natural terrain (e.g., trees, rocks, water), or  
+  - Functional structures (e.g., workshops).  
+- Non-empty cells are blocked (agent cannot move through them).  
 
-This is the schema of the recipes:
+### Agent
+- Single agent placed at a starting cell at the beginning of each episode.  
+- At each step, the agent can:  
+  - Move (up, down, left, right), or  
+  - Perform an action (*collect*, *craft*) on the cell it *faces*.  
 
-  recipes:
-    item:
-      primtive: count of primtive
-      _at: at what workshop does the primitve needs to be crafted
+### Initialization
+- Items are distributed across the grid at the start of each episode.  
+
+### Tasks
+The agent’s task is one of:  
+1. **Get Primitive** – collect a raw resource.  
+2. **Make Item** – craft a target item by following its recipe at the correct workshop.  
+
+### Crafting System
+- Items are produced by following **recipes**.  
+- **Primitives**: directly collectible resources.  
+- **Crafted items**: require input items (primitives or intermediates).  
+- Some items require multiple crafting stages.  
+- **Every recipe specifies the exact workshop where the item must be crafted.** Crafting at any other workshop is invalid.  
+
+### Recipe Schema
+```yaml
+recipes:
+  item_name:
+    input_item_1: count
+    input_item_2: count
+    ...
+    _at: workshop_name   # Must match the recipe’s specified workshop
 
 ## Code base for the game
 The code base contains the following information:
