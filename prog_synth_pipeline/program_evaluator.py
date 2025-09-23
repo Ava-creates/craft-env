@@ -81,12 +81,13 @@ class ProgramEvaluator:
         d = False
         while i < len(tokens):
             if len(tokens[i]) > 10 and tokens[i][:9] == "MOVE_FUNC":
-                dir_str = tokens[i].split('(')[1].strip(')')
+                dir_str = tokens[i].split('(')[1].strip(') ;')
 
                 result = run_with_timeout( "move", [dir_str], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in move")
                     return [], reward, False
+                # print("action in move, ", result)
                 r, done, observations = env.step(result)
                 if done:
                     d = True
@@ -95,11 +96,14 @@ class ProgramEvaluator:
                 func.append(("MOVE_FUNC", r, result))
                 
             elif len(tokens[i]) > 11 and tokens[i][:10] == "CRAFT_FUNC":
-                item = tokens[i].split('(')[1].strip(')').lower()            
+                # print(tokens[i])
+                item = tokens[i].split('(')[1].strip(') ;').lower()      
+                # print(item)      
                 result = run_with_timeout( "craft", [item], env, timeout)
                 if(result == -1):
                     print("Evaluation timed out in craft")
                     return [], reward, False
+                r = -2
                 for j in result:
                     r, done, observations = env.step(j)
                     if done:
@@ -109,13 +113,15 @@ class ProgramEvaluator:
                 i += 1
 
             elif len(tokens[i]) > 13 and tokens[i][:12] == "COLLECT_FUNC":
-                primitive = tokens[i].split('(')[1].strip(')').lower()
-                # print("dir_str", dir_str)
-                # print("primitive", primitive)
+                primitive = tokens[i].split('(')[1].strip(') ;').lower()
+                # print("primitive", primitive+"space test")
+                # primtive = primitive.strip()
                 result = run_with_timeout( "collect", [primitive], env, timeout)
+                r = -2
                 if(result == -1):
                     print("Evaluation timed out in collect")
                     return [], reward, False
+                # print(result)
                 for j in result:
                     r, done, observations = env.step(j)
                     if done:

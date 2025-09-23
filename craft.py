@@ -2,7 +2,8 @@
 
 from cookbook import Cookbook
 from misc import array
-
+import numpy as np
+import pandas as pd
 import curses
 import logging
 import numpy as np
@@ -106,6 +107,7 @@ class CraftWorld(object):
   def sample_scenario(self, make_island=False, make_cave=False):
     # generate grid
     # print(self.cookbook.n_kinds)
+
     grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
     i_bd = self.cookbook.index["boundary"]
     grid[0, :, i_bd] = 1
@@ -134,6 +136,18 @@ class CraftWorld(object):
       for i in range(4):
         (x, y) = random_free(grid, self.random)
         grid[x, y, primitive] = 1
+
+    # init_pos = (5, 5)
+        
+    #     # Place wood at (5,6) - right next to agent
+    # wood_index = self.cookbook.index["wood"]
+    # grid[5, 6, wood_index] = 1
+
+    # grass_index = self.cookbook.index["iron"]
+    # grid[5,7, grass_index] = 1
+
+    # workshop1_index = self.cookbook.index["workshop1"]
+    # grid[5,9, workshop1_index] = 1
 
     # generate crafting stations
     for i_ws in range(N_WORKSHOPS):
@@ -330,6 +344,7 @@ class CraftWorld(object):
         return CraftScenario(grid, init_pos, self)
 
   def visualize(self, transitions):
+
     def _visualize(win):
       curses.start_color()
       for i in range(1, 8):
@@ -533,14 +548,15 @@ class CraftState(object):
             # print("n_inventory", n_inventory)
             success = True
 
-        # elif thing == self.world.water_index:
-        #   if n_inventory[cookbook.index["bridge"]] > 0:
-        #     n_grid[nx, ny, self.world.water_index] = 0
-        #     n_inventory[cookbook.index["bridge"]] -= 1
+        elif thing == self.world.water_index:
+          # print("at water index  with bridge number", n_inventory[cookbook.index["bridge"]])
+          if n_inventory[cookbook.index["bridge"]] > 0:
+            n_grid[nx, ny, self.world.water_index] = 0
+            n_inventory[cookbook.index["bridge"]] -= 1
 
-        # elif thing == self.world.stone_index:
-        #   if n_inventory[cookbook.index["axe"]] > 0:
-        #     n_grid[nx, ny, self.world.stone_index] = 0
+        elif thing == self.world.stone_index:
+          if n_inventory[cookbook.index["axe"]] > 0:
+            n_grid[nx, ny, self.world.stone_index] = 0
 
         break
 

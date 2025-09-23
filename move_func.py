@@ -1,4 +1,5 @@
 def move(env, dir):
+  # print(dir)
   if dir == "UP":
     return 1
   elif dir == "DOWN":
@@ -7,3 +8,4 @@ def move(env, dir):
     return 2
   elif dir == "RIGHT":
     return 3
+  return 0

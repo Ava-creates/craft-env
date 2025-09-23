@@ -9,6 +9,164 @@ def eval(res):
             temp_dir = os.getcwd()
             script_path = os.path.join(temp_dir, 'generated_code.py')
             
+            full_program_collect=f'''
+import numpy as np
+import time
+import collections
+import env_factory
+import craft
+import env
+
+import env_factory
+def solve(env, primitive, visualise=False) -> float:
+  """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
+  actions_to_take = collect(env, primitive)
+  total_reward = 0.0
+
+  for t in range(len(actions_to_take)):
+    action = actions_to_take[t]
+    reward, done, observations = env.step(action)
+    total_reward += reward
+    if done:
+      break
+
+  if total_reward>0.5:
+    return 0.2
+
+  return total_reward
+
+
+def evaluate() -> float:
+  """Evaluates a crafting policy on a sample task."""
+  visualise = False
+  recipes_path = "resources/recipes.yaml"
+  hints_path = "resources/hints.yaml"
+  reward = 0 
+  for i in range(10):
+    if(i == 0):
+      p = "wood"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env.reset()
+    
+    elif(i==1):
+      p = "iron"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+      
+    elif(i==2):
+      p = "wood"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+
+    elif(i==3): #grass not present onthe grid should return empty list
+      p = "grass"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
+      env.reset()
+
+    elif(i==4):
+      p = "wood"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[plank]')
+      env.reset()
+      #env.step(1)
+      #env.step(4)
+
+    elif(i==5):
+      p = "grass"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 3, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[cloth]')
+      env.reset()
+      #env.step(1)
+      #env.step(4)
+
+
+    elif(i==6):
+      p = "grass"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 4, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[rope]')
+      env.reset()
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
+
+    elif(i==7):
+      p = "grass"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
+      #env.step(0)
+      #env.step(4)
+
+    elif(i==8):
+      p = "wood"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[bundle]')
+      env.reset()
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
+
+    else:
+      p = "gold"
+      env_sampler = env_factory.EnvironmentFactory(
+      recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
+            visualise=visualise)
+
+      env = env_sampler.sample_environment(task_name= 'make[goldarrow]')
+      env.reset()
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(4)
+      env.step(1)
+      env.step(1)
+      env.step(4)
+      
+    r= solve(env, p, visualise=visualise)
+    reward += r
+
+  return reward
+  
+  
+def collect(env, primitive):
+{res}
+
+print(evaluate())'''
+# print(full_program_collect)
             # Create complete executable program
             full_program = f'''
 import numpy as np
@@ -215,7 +373,7 @@ print(evaluate())
                         '''
             # print(full_program)
             with open(script_path, 'w') as f:
-                f.write(full_program.strip())
+                f.write(full_program_collect.strip())
 
             try:
                 # Convert input to string representatio
@@ -233,7 +391,7 @@ print(evaluate())
                 
                 # Try to parse numerical output
                 output = result.stdout.strip()
-                print("output ", output)
+                # print("output ", output)
                 try:
                     return float(output), True
                 except ValueError:
@@ -252,12 +410,12 @@ print(evaluate())
 with open("prompt_specifications/specification_with_updated_nld.txt", "r") as f:
     prompt1 = f.read()
 
-with open("craft_func.py", "r") as f:
+with open("collect_perf.py", "r") as f:
     func = f.read()
 
-prompt = prompt1 + "\n" + "def craft(env, item): \n" + func
+prompt = prompt1 + "\n" + "def collect(env, primitive): \n" + func
 
-prompt += "we have the function above analyse the function and give natural language feedback on it as it is not working properly in bullet points"
+prompt += "we have the function above analyse the function and give natural language feedback on it as it is not working properly in bullet points."
 
 
 
@@ -272,9 +430,10 @@ response = client.models.generate_content(
                     )
 b = response.text
 
-# print(b)
+print(b)
 
-prompt = prompt1 + "feedback:\n"+b +  "def craft(env, item): \n" + func + "Return the corrected version of the function"
+prompt = prompt1 + "feedback:\n"+b +  "def collect(env, primitive): \n" + func + "Return the corrected version of the function"
+
 
 for i in range(10):
     response = client.models.generate_content(
@@ -282,15 +441,15 @@ for i in range(10):
                         )
     b = response.text
 
-    print("second generation\n", b)
+    # print("second generation\n", b)
 
-    b = b[b.index("def craft(env, item):")+22:]
+    b = b[b.index("def collect(env, primitive):")+len("def collect(env, primitive):")+1:]
     b= b[:b.index("```")]
     
-    # Log the extracted function code
-    print(f"Iteration {i+1} - Extracted function code:")
-    print(b)
-    print("-" * 50)
+    # # Log the extracted function code
+    # print(f"Iteration {i+1} - Extracted function code:")
+    # print(b)
+    # print("-" * 50)
     
     # Log the evaluation result
     eval_result = eval(b)
@@ -300,7 +459,7 @@ for i in range(10):
         "extracted_function_code": b,
         "evaluation_result": eval_result,
     }
-    
+    print(eval_result)
     # Write to log file in JSON format
     with open("feedback_sampling.json", 'a') as log_file:
         log_file.write(json.dumps(log_entry, indent=2) + "\n")

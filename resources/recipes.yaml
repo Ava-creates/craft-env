@@ -15,20 +15,21 @@ primitives:
   - gem
 
 recipes:
-  plank:
+
+  slingshot:
+    rope: 1
     wood: 1
-    _at: workshop0 
+    rock: 1
+    _at: workshop1
 
-  stick:
+  arrow:
+    knife: 1
     wood: 1
-    _at: workshop2
+    _at: workshop0
 
-  cloth:
-    grass: 1
-    _at: workshop2
-
-  rope:
-    grass: 1
+  goldarrow:
+    gold: 1
+    wood: 1
     _at: workshop0
 
   bridge:
@@ -71,17 +72,6 @@ recipes:
     stick: 1
     _at: workshop2
 
-  slingshot:
-    rope: 1
-    wood: 1
-    rock: 1
-    _at: workshop1
-
-  arrow:
-    knife: 1
-    wood: 1
-    _at: workshop0
-
   bow:
     rope: 1
     bundle: 1
@@ -99,7 +89,18 @@ recipes:
     iron: 1
     _at: workshop0
 
-  goldarrow:
-    gold: 1
+  plank:
     wood: 1
+    _at: workshop0 
+
+  stick:
+    wood: 1
+    _at: workshop2
+
+  cloth:
+    grass: 1
+    _at: workshop2
+
+  rope:
+    grass: 1
     _at: workshop0

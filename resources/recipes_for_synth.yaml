@@ -25,6 +25,11 @@ recipes:
     rock: 1
     _at: workshop0
 
+  bridge:
+    wood: 1
+    iron: 1
+    _at: workshop1
+
   slingshot:
     rope: 1
     wood: 1

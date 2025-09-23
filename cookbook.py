@@ -54,3 +54,33 @@ class Cookbook(object):
           insert(k, v * n_needed)
 
     return out
+
+  def primitives_for_reward(self, goal):
+    out = {}
+
+    if goal not in self.recipes:
+      return out
+
+    def insert(kind, count):
+      # assert kind in self.primitives
+      if kind not in out:
+        out[kind] = count
+      else:
+        out[kind] += count
+
+    for ingredient, count in self.recipes[goal].items():
+      if not isinstance(ingredient, int):
+        assert ingredient[0] == "_"
+        continue
+      elif ingredient in self.primitives:
+        insert(ingredient, count)
+      else:
+        insert(ingredient, count)
+        sub_recipe = self.recipes[ingredient]
+        n_produce = sub_recipe["_yield"] if "_yield" in sub_recipe else 1
+        n_needed = int(np.ceil(1. * count / n_produce))
+        expanded = self.primitives_for(ingredient)
+        for k, v in expanded.items():
+          insert(k, v * n_needed)
+    # print(out)
+    return out

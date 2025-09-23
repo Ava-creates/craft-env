@@ -4,7 +4,24 @@ move ::= MOVE_FUNC LPAR dir RPAR
 dir ::= UP | DOWN | LEFT | RIGHT
 craft ::= CRAFT_FUNC LPAR item RPAR
 collect ::= COLLECT_FUNC LPAR primitive RPAR
-item ::=  ROPE |  KNIFE |  SLINGSHOT | ARROW | GOLDARROW
+item ::= PLANK 
+        | STICK 
+        | CLOTH 
+        | ROPE 
+        | BRIDGE 
+        | BUNDLE 
+        | HAMMER 
+        | KNIFE 
+        | BED 
+        | AXE 
+        | SHEARS 
+        | LADDER 
+        | SLINGSHOT 
+        | ARROW 
+        | BOW 
+        | BENCH 
+        | FLAG 
+        | GOLDARROW
 ifhas ::= if HAS LPAR item RPAR
-primitive ::= BOUNDARY | WATER | STONE | WORKSHOP0 | WORKSHOP1 | WORKSHOP2 | WOOD | IRON | GRASS | ROCK | GOLD | GEM
+primitive ::= WOOD | IRON | GRASS | ROCK | GOLD | GEM
 do ::= then task

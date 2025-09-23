@@ -2,10 +2,13 @@ import numpy as np
 import time
 import collections
 import env_factory
+import craft
+import env
 
-def solve(env, item, visualise=False) -> float:
+import env_factory
+def solve(env, primitive, visualise=False) -> float:
   """Runs the environment with a collect function that returns list of actions to take and returns total reward."""
-  actions_to_take = craft(env, item)
+  actions_to_take = collect(env, primitive)
   total_reward = 0.0
 
   for t in range(len(actions_to_take)):
@@ -14,136 +17,119 @@ def solve(env, item, visualise=False) -> float:
     total_reward += reward
     if done:
       break
-#   print(item, total_reward, actions_to_take)
+
+  if total_reward>0.5:
+    return 0.2
+
   return total_reward
+
 
 def evaluate() -> float:
   """Evaluates a crafting policy on a sample task."""
-  #max reward is 6 for this fucntion so any craft objet that can get when it is working properly
   visualise = False
   recipes_path = "resources/recipes.yaml"
-  hints_path = "resources/hints.yaml"     
+  hints_path = "resources/hints.yaml"
   reward = 0 
-  for i in range(11):
+  for i in range(10):
     if(i == 0):
-      item = "stick"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[stick]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item,  visualise=visualise) #should give +1
     
     elif(i==1):
-      item = "stick"
+      p = "iron"
       env_sampler = env_factory.EnvironmentFactory(
-      recipes_path, hints_path, 0, max_steps=100, reuse_environments=False,
+      recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
-      env = env_sampler.sample_environment(task_name= 'make[stick]')
+      env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise)  #should give 0 when it is working properly
-      if temp_reward>0 :
-        reward -= 0.3
       
     elif(i==2):
-      item = "bridge"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)  # 0 when working properly
 
-    elif(i==3):
-      item = "bridge"
+    elif(i==3): #grass not present onthe grid should return empty list
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 1, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bridge]')
       env.reset()
-      temp_reward = solve(env, item, visualise=visualise) # 0 when working properly 
-      if temp_reward>0 :
-        reward -= 0.3
 
     elif(i==4):
-      item = "plank"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 2, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[plank]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise) # +1 this does nnot work need to collect more before crafting
+      #env.step(1)
+      #env.step(4)
 
     elif(i==5):
-      item = "cloth"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 3, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[cloth]')
       env.reset()
-      env.step(1)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)  #+1
+      #env.step(1)
+      #env.step(4)
 
 
     elif(i==6):
-      item = "rope"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 4, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[rope]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise) #+1
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
 
     elif(i==7):
-      item = "bundle"
+      p = "grass"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bundle]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
-      env.step(0)
-      env.step(4)
-      reward += solve(env, item, visualise=visualise)  #+1
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
+      #env.step(0)
+      #env.step(4)
 
     elif(i==8):
-      item = "bundle"
+      p = "wood"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 5, max_steps=100, reuse_environments=False,
             visualise=visualise)
 
       env = env_sampler.sample_environment(task_name= 'make[bundle]')
       env.reset()
-      env.step(0)
-      env.step(0)
-      env.step(4)
+      #env.step(0)
+      #env.step(0)
+      #env.step(4)
 
-      temp_reward = solve(env, item, visualise=visualise)
-      if temp_reward>0 :
-        reward -= 0.3
-
-    elif(i==9):
-      item = "goldarrow"
+    else:
+      p = "gold"
       env_sampler = env_factory.EnvironmentFactory(
       recipes_path, hints_path, 6, max_steps=100, reuse_environments=False,
             visualise=visualise)
@@ -157,184 +143,145 @@ def evaluate() -> float:
       env.step(1)
       env.step(1)
       env.step(4)
-      reward += solve(env, item, visualise=visualise)  # +1
-
-    else:
-      recipes_path_2 = "resources/recipes_for_synth.yaml"
-      item = "arrow"
-      env_sampler = env_factory.EnvironmentFactory(
-            recipes_path_2, hints_path, 6, max_steps=100, 
-            reuse_environments=False, visualise=False)
-      env=env_sampler.sample_environment(task_name='make[arrow]')
-      env.reset()
-      # Actions to execute:
-      env.step(0)
-      env.step(2)
-      env.step(2)
-      env.step(4)
-      env.step(0)
-      env.step(0)
-      env.step(0)
-      env.step(0)
-      env.step(0)
-      env.step(0)
-      env.step(2)
-      env.step(4)
-      env.step(2)
-      env.step(2)
-      env.step(2)
-      env.step(2)
-      env.step(2)
-      env.step(2)
-      env.step(2)
-      env.step(4)
-      env.step(1)
-      env.step(1)
-      env.step(4)
-      reward+=solve(env, item, visualise=visualise) 
       
+    r= solve(env, p, visualise=visualise)
+    reward += r
+
   return reward
-
-def craft(env, item):
+  
+  
+def collect(env, primitive):
     """
-    Generates a sequence of actions to move to the correct workshop,
-    turn towards it, and craft the specified item.
+    Computes a shortest path to collect a specified primitive using a stateful Breadth-First Search.
 
-    This function implements a robust strategy:
-    1. Look up the recipe to find the required workshop and ingredients.
-    2. Check if the agent's inventory has the required ingredients.
-    3. Use Breadth-First Search (BFS) to find the shortest obstacle-avoiding
-       path to an empty cell adjacent to the correct workshop.
-    4. Convert the path into a sequence of move actions.
-    5. Append a final move action to turn the agent towards the workshop.
-    6. Append the 'USE' action to perform the craft.
+    This function finds the shortest sequence of actions for the agent to move
+    adjacent to a target primitive and collect it. The search accounts for the
+    agent's current position, inventory, and the grid layout.
+
+    The agent can use tools from its inventory to overcome obstacles (e.g., using a
+    'bridge' to cross 'water'). The BFS simulates these actions by tracking changes
+    to the grid and inventory, allowing it to discover paths through cleared obstacles.
+
+    The state in the BFS queue consists of:
+    - pos (tuple): The agent's (x, y) coordinates.
+    - inventory (np.ndarray): The agent's current inventory.
+    - grid (np.ndarray): The current state of the world grid for that search branch.
+    - actions (list): The sequence of actions taken to reach this state.
+
+    The search terminates upon finding a path that places the agent next to the
+    target primitive, returning the full action sequence, including the final 'USE'
+    action. If no path is found, it returns an empty list.
 
     Args:
-        env (CraftLab): The environment instance.
-        item (str): The name of the item to craft.
+        env (env.CraftLab): The CraftLab environment instance, providing access to the current state.
+        primitive (str): The name of the primitive to collect (e.g., 'wood', 'gold').
 
     Returns:
-        list[int]: A list of action integers, or an empty list if
-                   crafting is not possible.
+        List[int]: A list of action indices to collect the primitive, or an empty
+                   list if it's unreachable.
     """
-    # 1. SETUP: Get required info from the environment and cookbook
-    cookbook = env.world.cookbook
-    state = env._current_state
+    UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
     
-    item_idx = cookbook.index[item]
-    if item_idx is None:
-        return []  # Item not recognized
+    initial_state = env._current_state
+    world = initial_state.world
+    cookbook = world.cookbook
+    grid_shape = initial_state.grid.shape
 
-    recipe = cookbook.recipes.get(item_idx)
-    if recipe is None or '_at' not in recipe:
-        return []  # Not a craftable item at a workshop
+    try:
+        target_idx = cookbook.index[primitive]
+        water_idx = cookbook.index['water']
+        bridge_idx = cookbook.index['bridge']
+    except KeyError:
+        # This occurs if a required item like 'water' or the primitive itself isn't in the cookbook.
+        return []
 
-    # 2. INGREDIENT CHECK: Verify if the agent has the necessary materials
-    inventory = state.inventory
-    for ing_name, required_count in recipe.items():
-        if ing_name == '_at':
-            continue
-        ing_idx = cookbook.index[ing_name]
-        if inventory[ing_idx] < required_count:
-            return []  # Missing ingredients
+    # Map obstacles to the tools required to clear them
+    tool_for_obstacle = {
+        water_idx: bridge_idx,
+    }
 
-    # 3. LOCATE WORKSHOPS AND TARGETS
-    workshop_name = recipe['_at']
-    workshop_idx = cookbook.index[workshop_name]
-    grid = state.grid
-    width, height, _ = grid.shape
+    # BFS queue stores tuples of: (position, inventory, grid, actions)
+    queue = collections.deque([(
+        initial_state.pos,
+        initial_state.inventory.copy(),
+        initial_state.grid.copy(),
+        []
+    )])
+    
+    # Visited set prevents cycles and redundant computations.
+    # The key includes position, inventory, and the grid state.
+    visited = set()
+    initial_state_key = (initial_state.pos, tuple(initial_state.inventory), initial_state.grid.tobytes())
+    visited.add(initial_state_key)
 
-    workshop_locations = np.argwhere(grid[:, :, workshop_idx] == 1)
-    if workshop_locations.shape[0] == 0:
-        return []  # Required workshop not found on the map
-
-    # A target cell is an empty cell adjacent to a workshop.
-    # Map from target_cell -> workshop_cell for easy lookup.
-    target_map = {}
-    for ws_pos_arr in workshop_locations:
-        ws_pos = tuple(ws_pos_arr)
-        # Check neighbors (x,y)
-        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            adj_pos = (ws_pos[0] + dx, ws_pos[1] + dy)
-            if 0 <= adj_pos[0] < width and 0 <= adj_pos[1] < height:
-                # An empty cell has a sum of 0 across the kinds axis
-                if grid[adj_pos[0], adj_pos[1], :].sum() == 0:
-                    if adj_pos not in target_map:
-                        target_map[adj_pos] = ws_pos
-
-    if not target_map:
-        return []  # No accessible locations next to any workshop
-
-    # 4. PATHFINDING (BFS)
-    start_pos = tuple(state.pos)
-
-    # If already at a target location, just turn and use.
-    if start_pos in target_map:
-        workshop_pos = target_map[start_pos]
-        dx = workshop_pos[0] - start_pos[0]
-        dy = workshop_pos[1] - start_pos[1]
-        
-        turn_action = -1
-        # Action mapping: 0:DOWN(+y), 1:UP(-y), 2:LEFT(-x), 3:RIGHT(+x)
-        if dx == 1: turn_action = 3  # Face RIGHT
-        elif dx == -1: turn_action = 2 # Face LEFT
-        elif dy == 1: turn_action = 0  # Face DOWN
-        elif dy == -1: turn_action = 1 # Face UP
-        
-        return [turn_action, 4]  # action 4 is USE
-
-    # Initialize BFS
-    queue = collections.deque([(start_pos, [])])  # (position, path_of_actions)
-    visited = {start_pos}
-
-    path_to_target = None
-    final_pos = None
-
+    # Map action indices to their corresponding (dx, dy) deltas
+    action_deltas = {
+        UP:    (0, -1),
+        DOWN:  (0, 1),
+        LEFT:  (-1, 0),
+        RIGHT: (1, 0),
+    }
+    
     while queue:
-        current_pos, path = queue.popleft()
+        pos, inventory, grid, actions = queue.popleft()
 
-        if current_pos in target_map:
-            path_to_target = path
-            final_pos = current_pos
-            break
+        if len(actions) > 200:  # Safety break to prevent searching infinitely on complex maps
+            continue
 
-        # Move definitions: (dx, dy, action_to_get_there)
-        moves = [(0, 1, 0), (0, -1, 1), (-1, 0, 2), (1, 0, 3)]  # DOWN, UP, LEFT, RIGHT
-        
-        for dx, dy, action in moves:
-            next_pos = (current_pos[0] + dx, current_pos[1] + dy)
-            
-            if next_pos in visited:
+        # Explore neighbors by trying each directional action from the current position
+        for action, (dx, dy) in action_deltas.items():
+            neighbor_pos = (pos[0] + dx, pos[1] + dy)
+
+            # Check if the neighbor is within the grid bounds
+            if not (0 <= neighbor_pos[0] < grid_shape[0] and 0 <= neighbor_pos[1] < grid_shape[1]):
                 continue
             
-            # Check bounds and obstacles
-            if (0 <= next_pos[0] < width and 
-                0 <= next_pos[1] < height and 
-                grid[next_pos[0], next_pos[1], :].sum() == 0):
+            # Identify the content of the neighbor cell
+            cell_idx = np.argmax(grid[neighbor_pos])
+
+            # Case 1: Neighbor is the target primitive. We found a solution.
+            if cell_idx == target_idx:
+                # To collect, the agent must face the target and USE. The `action` will turn
+                # the agent. The subsequent move will be blocked by the resource, but the
+                # agent will be correctly oriented for the USE action.
+                return actions + [action, USE]
+
+            # Case 2: Neighbor is an empty, traversable cell.
+            if cell_idx == 0:
+                new_pos = neighbor_pos
+                new_actions = actions + [action]
                 
-                visited.add(next_pos)
-                new_path = path + [action]
-                queue.append((next_pos, new_path))
+                # The grid and inventory don't change for a simple move.
+                state_key = (new_pos, tuple(inventory), grid.tobytes())
+                if state_key not in visited:
+                    visited.add(state_key)
+                    queue.append((new_pos, inventory, grid, new_actions))
+
+            # Case 3: Neighbor is an obstacle that can be cleared with a tool.
+            elif cell_idx in tool_for_obstacle:
+                required_tool_idx = tool_for_obstacle[cell_idx]
                 
-    # 5. CONSTRUCT FINAL ACTION LIST
-    if path_to_target is None:
-        return []  # No path found
+                # Check if the agent has the necessary tool in its inventory.
+                if inventory[required_tool_idx] > 0:
+                    # Simulate using the tool: agent stays at `pos`, but inventory and grid change.
+                    new_inventory = inventory.copy()
+                    new_inventory[required_tool_idx] -= 1
+                    
+                    new_grid = grid.copy()
+                    # Clear the obstacle cell, making it empty (represented by a zero vector).
+                    new_grid[neighbor_pos] = 0.0
 
-    workshop_pos = target_map[final_pos]
+                    # The action sequence is to face the obstacle and use the tool.
+                    new_actions = actions + [action, USE]
+                    
+                    # This new search state starts from the *same position* but with an updated world.
+                    state_key = (pos, tuple(new_inventory), new_grid.tobytes())
+                    if state_key not in visited:
+                        visited.add(state_key)
+                        queue.append((pos, new_inventory, new_grid, new_actions))
 
-    # Determine the final turn action to face the workshop
-    dx = workshop_pos[0] - final_pos[0]
-    dy = workshop_pos[1] - final_pos[1]
-    
-    turn_action = -1
-    if dx == 1: turn_action = 3  # Face RIGHT
-    elif dx == -1: turn_action = 2 # Face LEFT
-    elif dy == 1: turn_action = 0  # Face DOWN
-    elif dy == -1: turn_action = 1 # Face UP
-
-    actions = path_to_target + [turn_action, 4]  # Path, Turn, USE
-
-    return actions
+    # If the queue becomes empty, no path was found.
+    return []
 
 
 print(evaluate())

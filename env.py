@@ -169,7 +169,8 @@ class CraftLab(object):
     goal_name, goal_arg = self.task.goal
 
     # Get all items needed in the recipe for the goal
-    needed_items = self.world.cookbook.primitives_for(goal_arg)
+    needed_items = self.world.cookbook.primitives_for_reward(goal_arg)
+
     
     # Calculate reward based on new pickups of needed items
     reward = 0.0

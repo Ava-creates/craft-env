@@ -14,20 +14,41 @@ from google import genai
 import requests
 from funsearch.implementation.funsearch import FunSearch
 from funsearch.implementation import config as config_lib
-        
+import pandas as pd
+
+def grid_to_markdown(grid, cookbook):
+    width, height, n_kinds = grid.shape
+    inv_index = cookbook.index.reverse_contents  # index -> item name
+
+    table = []
+    for y in range(height):  # row by row
+        row = []
+        for x in range(width):
+            cell_items = [inv_index[k] for k in range(1, n_kinds) if grid[x, y, k] == 1]
+            row.append(",".join(cell_items) if cell_items else ".")
+        table.append(row)
+
+    df = pd.DataFrame(table)
+    return df.to_markdown(index=False, headers=[])
+
+
 final =[]
 evaluator = ProgramEvaluator()
-recipes_path = "resources/recipes_for_synth.yaml"
+recipes_path = "resources/recipes.yaml"
 hints_path = "resources/hints.yaml"
 env_sampler = env_factory.EnvironmentFactory(
             recipes_path, hints_path, 6, max_steps=100, 
             reuse_environments=False, visualise=False)
-    # Read tasks and time from JSON 
+
 
 with open("prog_synth_pipeline/task_config.json", "r") as f:
         config = json.load(f)
         tasks = config["tasks"]
         time_limits = config["time"]
+
+
+tasks = [tasks[-1]]
+print(tasks)
 def is_terminal(symbol: str, cfg: CFGParser) -> bool:
     return symbol not in cfg.non_terminals
 
@@ -35,7 +56,6 @@ def evaluate_program_with_evaluator(evaluator, program_str: str, env, time) -> i
     """
     Evaluate a program using your ProgramEvaluator.
     """
-
     # try:
     result = evaluator.evaluate_program(program_str, env, time)
     if(result['success']):
@@ -86,17 +106,17 @@ def tokenize_rhs(rhs: str) -> List[List[str]]:
     alternatives = [alt.strip().split() for alt in rhs.split('|')]
     return alternatives
 
-def evaluate(program_str):
-    envs = []
+def evaluate(program_str, task , env):
+    
     # for task in tasks:
-    envs.append(env_sampler.sample_environment(task_name='make[arrow]'))
+    
     results = set()
     # for ind in range(len(envs)):
-    a, s, r, eval_time, funcs = evaluate_program_with_evaluator(evaluator, program_str, envs[0], 60)
+    a, s, r, eval_time, funcs = evaluate_program_with_evaluator(evaluator, program_str, env, 60)
     results.add(1 if s else 0)
    
     
-    return a, program_str, results, s, r, eval_time, "make[arrow]",funcs
+    return a, program_str, results, s, r, eval_time, task,funcs
 
 def eval_pll(programs, num_workers=None):
     if num_workers is None:
@@ -115,11 +135,39 @@ def eval_pll(programs, num_workers=None):
 def synthesis_llm():
     with open("cfg/cfg.txt") as f:
         cfg = f.read()
-    with open("resources/recipes_for_synth.yaml") as f:
+    with open("resources/recipes.yaml") as f:
         recipes = f.read()
-    prompt = f"""
+
+    client = genai.Client()
+    first_failing_funcs = []
+    programs = []
+    
+    for task in tasks:
+        env = env_sampler.sample_environment(task_name=task)
+
+        markdown = grid_to_markdown(env._current_state.grid, env.world.cookbook)
+        # print(markdown)
+        program = "$MOVE_FUNC(UP) ;"
+        prompt = f"""
     You are a Domain Specific Language (DSL) program generator for the Craft domain. 
 
+    ### Start State
+    {markdown}
+
+    ## Natural Language Description
+    Craft is a single-agent game in a pre-specified environment. 
+    The environment of craft is a grid world of size n * n. Each cell can be empty, contain an item, or part of natural terrain or functional structures. When the cell is nonempty, it is considered as blocked. A agent can move around the environment freely through empty cells. At each step, the agent can either move or perform a specific actions, such as collect or craft, towards the immediate cell that it is facing towards. 
+    At the beginning of each episode, the agent is placed at a starting cell and a distribution of items across the grid is initialized. The agent’s tasks involve either collecting primitives (raw resources) or crafting items. A item can only be crafted at the specific workshop mentioned in the recipes. 
+    The item to be craft are produced from primitives (or other crafted items) by following recipes. Each recipe specifies which items are required and at which workshop the crafting must occur. A primitive item might not need to be crafted but just collected. More complex items, such as axe, or flag, require intermediate items along with primitives. This all is specified in the recipe file of the environment. Please note a item can only be crafted at the specific workshop mentioned in the recipes. 
+
+    This is the schema of the recipes:
+
+    recipes:
+        item:
+        primtive: count of primtive
+        _at: at what workshop does the primitve needs to be crafted
+
+    Sometimes, primitive can be blocked by obstacles like trees, water, etc. and needs the player to use a tool to pass the obstacle in order to reach and collect the primitive.
     ## Context Free Grammar (CFG)
     Here is the context-free grammar (CFG) that defines the DSL. Strictly follow this CFG when synthesising programs :
 
@@ -128,8 +176,8 @@ def synthesis_llm():
     ## Example Programs
     Here are examples of programs written in this DSL:
 
-    COLLECT_FUNC(WOOD) ; MOVE_FUNC(RIGHT) ; CRAFT_FUNC(STICK)
-    COLLECT_FUNC(GRASS) ; MOVE_FUNC(RIGHT)
+    COLLECT_FUNC(WOOD) ; MOVE_FUNC(RIGHT) ; CRAFT_FUNC(STICK) ;
+    COLLECT_FUNC(GRASS) ; MOVE_FUNC(RIGHT) ;
 
     ## Domain Context
     This DSL is used to solve tasks in the Craft domain. Tasks typically look like:
@@ -146,77 +194,78 @@ def synthesis_llm():
     ## Task
     Generate a program that solves the following task :
 
-    **make(goldarrow)**
+    **{task}**
 
     ## Output Format Instructions
     Return ONLY the program string delimited by $ signs. Do not include any explanations, comments, or additional text outside the $ delimiters.
+    Example output ->
+    $program$
 
-    Example output format:
-    $CRAFT_FUNC(ARROW) ; COLLECT_FUNC(WOOD) ; MOVE_FUNC(RIGHT)$
+    ##Previous program that did not solve the task:
+    {program}
+
+    ##Return a program that is able to solve the task
+    
     """
-    # client = genai.Client()
-    first_failing_funcs = []
-    programs = []
-    for i in range(1):
-        # response = client.models.generate_content(
-        #                 model="gemini-2.5-pro", contents = prompt
-        #             )
-        # b = response.text.strip('$')
-        b= "COLLECT_FUNC(WOOD) ; COLLECT_FUNC(IRON) ; COLLECT_FUNC(ROCK) ; CRAFT_FUNC(KNIFE) ; CRAFT_FUNC(ARROW)"
-        programs.append(b)
-        a, program_str, results, s, r, eval_time, task, funcs = evaluate(b)
-        print("fuuncs", funcs)
-        if funcs:
-            actions_up_to_failure = []
-            for i, (func_name, reward, func_actions) in enumerate(funcs):
-                if reward <= 0:
-                    # Collect actions from all functions up to this failing one
-                    for j in range(i):
-                        actions_up_to_failure.append(funcs[j][2])  
-                    first_failing_funcs.append((func_name, reward, actions_up_to_failure, task))
-                    break  
-        # print(first_failing_funcs)
-    # Run FunSearch for each failing function
-    if first_failing_funcs:
-        # print("\nRunning FunSearch for failing functions...")
-        actions =[]
-        for func_name, reward, actions_up_to_failure, task in first_failing_funcs:
-            base_func_name = func_name.replace("_FUNC", "").lower()+"_base"
-            # print(base_func_name)
-            action_string = ""
-            if actions_up_to_failure:
-                print(actions_up_to_failure)
-                for actions in actions_up_to_failure:
-                    for a in actions:
-                        action_string+="env.step("+str(a)+")"+"\n  "
-            # print(action_string)
-            try:
-                with open("craft_base.txt", "r") as f:
-                    content = f.read()
+        for i in range(10):
+            response = client.models.generate_content(
+                            model="gemini-2.5-pro", contents = prompt
+                        )
+            b = response.text.strip('$')
+            # print(b)
+            # b= "COLLECT_FUNC(WOOD) ;  CRAFT_FUNC(STICK) ; COLLECT_FUNC(IRON) ; CRAFT_FUNC(AXE) ; COLLECT_FUNC(GEM)"
+            programs.append(b)
+            a, program_str, results, s, r, eval_time, task, funcs = evaluate(b, task ,env)
+            print(a, program_str, results, s, r, eval_time, task, funcs )
+            if s :
+                with open("program_for_tasks.log", 'a') as f:
+                    ans = program_str + "," +task +","+"True,"+str(r)+","+ str(eval_time)+"\n"
+                    f.write(ans)
+                break
+            program = b
 
-                # print(content )
+
+    #     if funcs:
+    #         actions_up_to_failure = []
+    #         for i, (func_name, reward, func_actions) in enumerate(funcs):
+    #             if reward <= 0:
+    #                 # Collect actions from all functions up to this failing one
+    #                 for j in range(i):
+    #                     actions_up_to_failure.append(funcs[j][2])  
+    #                 first_failing_funcs.append((func_name, reward, actions_up_to_failure, task))
+    #                 break  
+    #     # print(first_failing_funcs)
+    # # Run FunSearch for each failing function
+    # if first_failing_funcs:
+    #     # print("\nRunning FunSearch for failing functions...")
+    #     actions =[]
+    #     for func_name, reward, actions_up_to_failure, task in first_failing_funcs:
+    #         base_func_name = func_name.replace("_FUNC", "").lower()+"_base"
+    #         # print(base_func_name)
+    #         action_string = ""
+    #         if actions_up_to_failure:
+    #             print(actions_up_to_failure)
+    #             for actions in actions_up_to_failure:
+    #                 for a in actions:
+    #                     action_string+="env.step("+str(a)+")"+"\n  "
+    #         # print(action_string)
+    #         try:
+    #             with open("craft_base.txt", "r") as f:
+    #                 content = f.read()
+
+    #             # print(content )
                 
-                # Replace placeholders with actual values
-                content = content.replace("{env}", "env=env_sampler.sample_environment(task_name='make[arrow]')")
-                content = content.replace("{actions}", action_string)
+    #             # Replace placeholders with actual values
+    #             content = content.replace("{env}", "env=env_sampler.sample_environment(task_name='make[goldarrow]]')")
+    #             content = content.replace("{actions}", action_string)
         
-                with open("craft_base.txt", "w") as f:
-                    f.write(content)
+    #             with open("craft_base.txt", "w") as f:
+    #                 f.write(content)
                 
                 
-            except Exception as e:
-                print(f"Failed to update craft_base.txt: {e}")
+    #         except Exception as e:
+    #             print(f"Failed to update craft_base.txt: {e}")
             
-            with open("prompt_specifications/specification_jocelyn.txt", 'r') as f:
-                 specification = f.read()
-            funsearch = FunSearch(model_type='ollama')
-            config = config_lib.Config()
-            
-            try:
-                funsearch.run(specification, [""], config, base_func_name, "craft_func.py")
-                print(f"FunSearch completed for {func_name}")
-            except Exception as e:
-                print(f"FunSearch failed for {func_name}: {e}")
     return programs
 
 
