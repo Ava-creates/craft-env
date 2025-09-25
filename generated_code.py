@@ -152,135 +152,120 @@ def evaluate() -> float:
   
 def collect(env, primitive):
     """
-    Generates a sequence of actions to find, move to, and collect a specified primitive.
+    Calculates a sequence of actions to navigate to and collect a specified primitive.
 
-    This function implements a Breadth-First Search (BFS) algorithm to navigate the agent
-    to a position where it can collect the target primitive. It is designed to be robust
-    by addressing the specific mechanics of the Craft environment:
+    This function implements the A* search algorithm to find the shortest path from the
+    agent's current state to a state where it is adjacent to and facing the target
+    primitive. It correctly handles the agent's direction and navigates around
+    obstacles.
 
-    1.  **Pathfinding Goal**: The agent cannot occupy the same cell as a resource (e.g., a
-        tree). Therefore, the BFS finds a path to a walkable cell *adjacent* to the
-        target primitive.
+    Args:
+        env (CraftLab): The environment instance.
+        primitive (str): The name of the primitive to collect (e.g., 'WOOD', 'IRON').
 
-    2.  **Directional Collection**: The 'USE' action is directional. To collect the
-        primitive, the agent must be adjacent to it and facing it. This implementation
-        assumes a "bump-to-turn" mechanic, where attempting to move into the blocked
-        resource cell orients the agent correctly.
-
-    The algorithm is as follows:
-    - Identify all grid locations of the target primitive.
-    - Find all valid, walkable cells adjacent to these locations; these are the goals.
-    - Run BFS from the agent's current position to find the shortest path to any goal cell.
-    - Once the agent reaches a goal cell, determine the direction towards the primitive.
-    - Append a final movement action (the "bump") to face the primitive, followed by the
-      'USE' action to collect it.
+    Returns:
+        list[int]: A list of action integers representing the optimal plan. Returns
+                   an empty list if no path is found.
     """
-    # Step 1: Initialize state variables from the environment
+    # Action constants from the environment specification and analysis.
+    # It's assumed UP=Forward, LEFT=Turn Left, RIGHT=Turn Right.
+    ACTION_UP = 1
+    ACTION_LEFT = 2
+    ACTION_RIGHT = 3
+    ACTION_USE = 4
+
+    # Define a consistent agent direction encoding (0:N, 1:E, 2:S, 3:W - Clockwise)
+    # and the corresponding (dx, dy) vectors for moving forward.
+    DIR_VECTORS = {
+        0: (0, -1),   # North
+        1: (1, 0),    # East
+        2: (0, 1),    # South
+        3: (-1, 0),   # West
+    }
+
     current_state = env._current_state
     world = current_state.world
     grid = current_state.grid
     start_pos = current_state.pos
+    start_dir = current_state.dir
 
+    # Step 1: Identify the target primitive's index and find all its locations.
     try:
         primitive_index = world.cookbook.index[primitive]
     except KeyError:
-        return []  # Invalid primitive name
+        return []  # Invalid primitive name.
 
-    # Define action constants based on environment specification
-    ACTION_DOWN, ACTION_UP, ACTION_LEFT, ACTION_RIGHT, ACTION_USE = 0, 1, 2, 3, 4
+    target_coords = np.argwhere(grid[:, :, primitive_index] > 0)
+    if target_coords.shape[0] == 0:
+        return []  # Primitive not found on the grid.
+    target_locations = set(map(tuple, target_coords))
 
-    # Map actions to coordinate changes (dx=row_change, dy=col_change)
-    action_to_delta = {
-        ACTION_DOWN: (1, 0),
-        ACTION_UP: (-1, 0),
-        ACTION_LEFT: (0, -1),
-        ACTION_RIGHT: (0, 1),
-    }
+    # Step 2: Set up the A* search algorithm.
+    # The heuristic function is the Manhattan distance to the nearest target.
+    def heuristic(pos):
+        px, py = pos
+        return min(abs(px - tx) + abs(py - ty) for tx, ty in target_locations)
 
-    # Step 2: Find all primitive locations and their adjacent, walkable goal cells
-    target_coords = np.argwhere(grid[:, :, primitive_index] == 1)
-    if target_coords.size == 0:
-        return []  # Primitive not found on the map
+    # The priority queue stores tuples of: (priority, cost, state, path).
+    # - priority: The f-value (cost + heuristic) for sorting.
+    # - cost: The g-value, or length of the path so far.
+    # - state: A tuple of (x, y, direction).
+    # - path: The list of actions taken to reach the state.
+    initial_state = (start_pos[0], start_pos[1], start_dir)
+    pq = [(heuristic(start_pos), 0, initial_state, [])]
+    visited = set()
 
-    adjacent_goals = set()
-    goal_to_target_map = {}  # Map goal cells back to their target for orientation
+    while pq:
+        _, cost, state, path = heapq.heappop(pq)
 
-    for tx, ty in target_coords:
-        for action, (dx, dy) in action_to_delta.items():
-            # An adjacent cell is where the agent must be to perform the action
-            ax, ay = tx - dx, ty - dy
-            adj_pos = (ax, ay)
+        if state in visited:
+            continue
+        visited.add(state)
 
-            # Check if the adjacent cell is within bounds and walkable
-            if (0 <= ax < grid.shape[0] and 0 <= ay < grid.shape[1]):
-                kind_at_adj = np.argmax(grid[ax, ay])
-                if kind_at_adj not in world.non_grabbable_indices:
-                    adjacent_goals.add(adj_pos)
-                    if adj_pos not in goal_to_target_map:
-                        goal_to_target_map[adj_pos] = (tx, ty)
+        pos_x, pos_y, direction = state
 
-    if not adjacent_goals:
-        return []  # No accessible cells next to the primitive
+        # Step 3: Check for the goal condition.
+        # The goal is reached if the agent is facing a cell with the target primitive.
+        dx, dy = DIR_VECTORS[direction]
+        front_pos = (pos_x + dx, pos_y + dy)
 
-    # Step 3: BFS to find the shortest path to a goal cell
-    path_to_adjacent = None
-    final_pos = None
+        if front_pos in target_locations:
+            return path + [ACTION_USE]
 
-    if start_pos in adjacent_goals:
-        path_to_adjacent = []
-        final_pos = start_pos
-    else:
-        queue = collections.deque([(start_pos, [])])
-        visited = {start_pos}
+        # Step 4: Expand the search by exploring all possible actions.
 
-        while queue:
-            (cx, cy), path = queue.popleft()
+        # Action: TURN_RIGHT (action 3)
+        # A clockwise turn increments the direction index.
+        new_dir_right = (direction + 1) % 4
+        new_state_right = (pos_x, pos_y, new_dir_right)
+        if new_state_right not in visited:
+            new_cost = cost + 1
+            priority = new_cost + heuristic((pos_x, pos_y))
+            heapq.heappush(pq, (priority, new_cost, new_state_right, path + [ACTION_RIGHT]))
 
-            for action, (dx, dy) in action_to_delta.items():
-                nx, ny = cx + dx, cy + dy
-                next_pos = (nx, ny)
+        # Action: TURN_LEFT (action 2)
+        # A counter-clockwise turn decrements the direction index.
+        new_dir_left = (direction - 1 + 4) % 4
+        new_state_left = (pos_x, pos_y, new_dir_left)
+        if new_state_left not in visited:
+            new_cost = cost + 1
+            priority = new_cost + heuristic((pos_x, pos_y))
+            heapq.heappush(pq, (priority, new_cost, new_state_left, path + [ACTION_LEFT]))
 
-                if next_pos in visited:
-                    continue
-                
-                # Check grid bounds and walkability for the next step
-                if (0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1]):
-                    kind_at_next = np.argmax(grid[nx, ny])
-                    if kind_at_next not in world.non_grabbable_indices:
-                        new_path = path + [action]
-                        if next_pos in adjacent_goals:
-                            path_to_adjacent = new_path
-                            final_pos = next_pos
-                            queue.clear()  # Shortest path found, terminate search
-                            break
-                        
-                        visited.add(next_pos)
-                        queue.append((next_pos, new_path))
-    
-    if path_to_adjacent is None:
-        return []  # No path could be found
+        # Action: MOVE_FORWARD (action 1)
+        # Check if the cell in front is within bounds and empty (passable).
+        fx, fy = front_pos
+        width, height, _ = grid.shape
+        if 0 <= fx < width and 0 <= fy < height:
+            # A cell is passable if its one-hot encoding sums to 0.
+            if np.sum(grid[fx, fy, :]) == 0:
+                new_state_forward = (fx, fy, direction)
+                if new_state_forward not in visited:
+                    new_cost = cost + 1
+                    priority = new_cost + heuristic((fx, fy))
+                    heapq.heappush(pq, (priority, new_cost, new_state_forward, path + [ACTION_UP]))
 
-    # Step 4: Determine final orientation ("bump") and USE actions
-    full_path = list(path_to_adjacent)
-    (gx, gy) = final_pos
-    (tx, ty) = goal_to_target_map[final_pos]
-
-    # Calculate the action required to face the target from the adjacent goal position
-    required_turn_action = -1
-    if (tx, ty) == (gx - 1, gy): # Target is UP
-        required_turn_action = ACTION_UP
-    elif (tx, ty) == (gx + 1, gy): # Target is DOWN
-        required_turn_action = ACTION_DOWN
-    elif (tx, ty) == (gx, gy - 1): # Target is LEFT
-        required_turn_action = ACTION_LEFT
-    elif (tx, ty) == (gx, gy + 1): # Target is RIGHT
-        required_turn_action = ACTION_RIGHT
-
-    if required_turn_action != -1:
-        full_path.append(required_turn_action)
-        full_path.append(ACTION_USE)
-    
-    return full_path
+    return []  # Return an empty list if A* completes without finding a path.
 
 
 print(evaluate())

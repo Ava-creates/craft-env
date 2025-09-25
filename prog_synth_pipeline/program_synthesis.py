@@ -37,7 +37,7 @@ evaluator = ProgramEvaluator()
 recipes_path = "resources/recipes.yaml"
 hints_path = "resources/hints.yaml"
 env_sampler = env_factory.EnvironmentFactory(
-            recipes_path, hints_path, 6, max_steps=100, 
+            recipes_path, hints_path, 7, max_steps=100, 
             reuse_environments=False, visualise=False)
 
 
