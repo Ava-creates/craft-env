@@ -132,6 +132,25 @@ def eval_pll(programs, num_workers=None):
                     f.write(f"{task_name}: {prog}, solution: {s}, reward: {r}, evaluation_time: {eval_time:.4f}s\n")
     return results
 
+def find_bad_func(funcs, task):
+
+    first_failing_funcs = []
+    # print(funcs)
+    if funcs:
+            actions_up_to_failure = []
+            for i, (func_name, reward, func_actions) in enumerate(funcs):
+                if reward <= 0:
+                    # Collect actions from all functions up to this failing one
+                    for j in range(i):
+                        actions_up_to_failure.append(funcs[j][2])  
+                    first_failing_funcs.append((func_name, reward, actions_up_to_failure, task))
+                
+    print(first_failing_funcs)
+    # Run FunSearch for each failing function
+
+    
+
+        
 def synthesis_llm():
     with open("cfg/cfg.txt") as f:
         cfg = f.read()
@@ -222,50 +241,11 @@ def synthesis_llm():
                     ans = program_str + "," +task +","+"True,"+str(r)+","+ str(eval_time)+"\n"
                     f.write(ans)
                 break
-            program = b
 
+            else:
+                find_bad_func(funcs, task)
 
-    #     if funcs:
-    #         actions_up_to_failure = []
-    #         for i, (func_name, reward, func_actions) in enumerate(funcs):
-    #             if reward <= 0:
-    #                 # Collect actions from all functions up to this failing one
-    #                 for j in range(i):
-    #                     actions_up_to_failure.append(funcs[j][2])  
-    #                 first_failing_funcs.append((func_name, reward, actions_up_to_failure, task))
-    #                 break  
-    #     # print(first_failing_funcs)
-    # # Run FunSearch for each failing function
-    # if first_failing_funcs:
-    #     # print("\nRunning FunSearch for failing functions...")
-    #     actions =[]
-    #     for func_name, reward, actions_up_to_failure, task in first_failing_funcs:
-    #         base_func_name = func_name.replace("_FUNC", "").lower()+"_base"
-    #         # print(base_func_name)
-    #         action_string = ""
-    #         if actions_up_to_failure:
-    #             print(actions_up_to_failure)
-    #             for actions in actions_up_to_failure:
-    #                 for a in actions:
-    #                     action_string+="env.step("+str(a)+")"+"\n  "
-    #         # print(action_string)
-    #         try:
-    #             with open("craft_base.txt", "r") as f:
-    #                 content = f.read()
-
-    #             # print(content )
                 
-    #             # Replace placeholders with actual values
-    #             content = content.replace("{env}", "env=env_sampler.sample_environment(task_name='make[goldarrow]]')")
-    #             content = content.replace("{actions}", action_string)
-        
-    #             with open("craft_base.txt", "w") as f:
-    #                 f.write(content)
-                
-                
-    #         except Exception as e:
-    #             print(f"Failed to update craft_base.txt: {e}")
-            
     return programs
 
 

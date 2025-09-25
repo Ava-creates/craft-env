@@ -100,9 +100,51 @@ class CraftWorld(object):
       s = self.sample_scenario_bundle(make_island=make_island, make_cave=make_cave)
     elif self.env_type == 6:
       s = self.sample_scenario(make_island=make_island, make_cave=make_cave)
+    elif self.env_type == 7:
+      s = self.sample_scenario_random(make_island=make_island, make_cave=make_cave)
     else:
       s = self.sample_scenario_hard(make_island=make_island, make_cave=make_cave)
     return s
+
+    def sample_scenario_random(self, make_island, make_cave):
+    # generate grid
+    # print(self.cookbook.n_kinds)
+
+    grid = np.zeros((WIDTH, HEIGHT, self.cookbook.n_kinds))
+    i_bd = self.cookbook.index["boundary"]
+    grid[0, :, i_bd] = 1
+    grid[WIDTH - 1:, :, i_bd] = 1
+    grid[:, 0, i_bd] = 1
+    grid[:, HEIGHT - 1:, i_bd] = 1
+
+    # treasure
+    if make_island or make_cave:
+      (gx, gy) = (1 + self.random.randint(WIDTH - 2), 1)
+      treasure_index = \
+          self.cookbook.index["gold"] if make_island else self.cookbook.index["gem"]
+      wall_index = \
+          self.water_index if make_island else self.stone_index
+      grid[gx, gy, treasure_index] = 1
+      for i in range(-1, 2):
+        for j in range(-1, 2):
+          if not grid[gx + i, gy + j, :].any():
+            grid[gx + i, gy + j, wall_index] = 1
+
+    # ingredients
+    for primitive in self.cookbook.primitives:
+      if (primitive == self.cookbook.index["gold"] or
+              primitive == self.cookbook.index["gem"]):
+        continue
+      for i in range(4):
+        (x, y) = random_free(grid, self.random)
+        grid[x, y, primitive] = 1
+    # generate crafting stations
+    for i_ws in range(N_WORKSHOPS):
+      ws_x, ws_y = random_free(grid, self.random)
+      grid[ws_x, ws_y, self.cookbook.index["workshop%d" % i_ws]] = 1
+    # generate init pos
+    init_pos = random_free(grid, self.random)
+    return CraftScenario(grid, init_pos, self)
 
   def sample_scenario(self, make_island=False, make_cave=False):
     # generate grid
@@ -137,17 +179,17 @@ class CraftWorld(object):
         (x, y) = random_free(grid, self.random)
         grid[x, y, primitive] = 1
 
-    # init_pos = (5, 5)
+    init_pos = (5, 5)
         
-    #     # Place wood at (5,6) - right next to agent
-    # wood_index = self.cookbook.index["wood"]
-    # grid[5, 6, wood_index] = 1
+        # Place wood at (5,6) - right next to agent
+    wood_index = self.cookbook.index["wood"]
+    grid[5, 6, wood_index] = 1
 
-    # grass_index = self.cookbook.index["iron"]
-    # grid[5,7, grass_index] = 1
+    grass_index = self.cookbook.index["iron"]
+    grid[5,7, grass_index] = 1
 
-    # workshop1_index = self.cookbook.index["workshop1"]
-    # grid[5,9, workshop1_index] = 1
+    workshop1_index = self.cookbook.index["workshop1"]
+    grid[5,9, workshop1_index] = 1
 
     # generate crafting stations
     for i_ws in range(N_WORKSHOPS):
@@ -155,7 +197,7 @@ class CraftWorld(object):
       grid[ws_x, ws_y, self.cookbook.index["workshop%d" % i_ws]] = 1
 
     # generate init pos
-    init_pos = random_free(grid, self.random)
+    # init_pos = random_free(grid, self.random)
 
     return CraftScenario(grid, init_pos, self)
 

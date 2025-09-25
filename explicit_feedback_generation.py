@@ -3,7 +3,8 @@ import json
 import os
 import subprocess
 import time
-
+from google import genai
+import requests
 def eval(res):
             # with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = os.getcwd()
@@ -410,7 +411,7 @@ print(evaluate())
 with open("prompt_specifications/specification_with_updated_nld.txt", "r") as f:
     prompt1 = f.read()
 
-with open("collect_perf.py", "r") as f:
+with open("collect_func.py", "r") as f:
     func = f.read()
 
 prompt = prompt1 + "\n" + "def collect(env, primitive): \n" + func
@@ -419,8 +420,6 @@ prompt += "we have the function above analyse the function and give natural lang
 
 
 
-from google import genai
-import requests
 
 client = genai.Client()
 
@@ -435,16 +434,18 @@ print(b)
 prompt = prompt1 + "feedback:\n"+b +  "def collect(env, primitive): \n" + func + "Return the corrected version of the function"
 
 
-for i in range(10):
+for i in range(20):
     response = client.models.generate_content(
                             model="gemini-2.5-pro", contents = prompt
                         )
     b = response.text
 
     # print("second generation\n", b)
-
-    b = b[b.index("def collect(env, primitive):")+len("def collect(env, primitive):")+1:]
-    b= b[:b.index("```")]
+    try:
+      b = b[b.index("def collect(env, primitive):")+len("def collect(env, primitive):")+1:]
+      b= b[:b.index("```")]
+    except:
+      continue
     
     # # Log the extracted function code
     # print(f"Iteration {i+1} - Extracted function code:")

@@ -152,136 +152,135 @@ def evaluate() -> float:
   
 def collect(env, primitive):
     """
-    Computes a shortest path to collect a specified primitive using a stateful Breadth-First Search.
+    Generates a sequence of actions to find, move to, and collect a specified primitive.
 
-    This function finds the shortest sequence of actions for the agent to move
-    adjacent to a target primitive and collect it. The search accounts for the
-    agent's current position, inventory, and the grid layout.
+    This function implements a Breadth-First Search (BFS) algorithm to navigate the agent
+    to a position where it can collect the target primitive. It is designed to be robust
+    by addressing the specific mechanics of the Craft environment:
 
-    The agent can use tools from its inventory to overcome obstacles (e.g., using a
-    'bridge' to cross 'water'). The BFS simulates these actions by tracking changes
-    to the grid and inventory, allowing it to discover paths through cleared obstacles.
+    1.  **Pathfinding Goal**: The agent cannot occupy the same cell as a resource (e.g., a
+        tree). Therefore, the BFS finds a path to a walkable cell *adjacent* to the
+        target primitive.
 
-    The state in the BFS queue consists of:
-    - pos (tuple): The agent's (x, y) coordinates.
-    - inventory (np.ndarray): The agent's current inventory.
-    - grid (np.ndarray): The current state of the world grid for that search branch.
-    - actions (list): The sequence of actions taken to reach this state.
+    2.  **Directional Collection**: The 'USE' action is directional. To collect the
+        primitive, the agent must be adjacent to it and facing it. This implementation
+        assumes a "bump-to-turn" mechanic, where attempting to move into the blocked
+        resource cell orients the agent correctly.
 
-    The search terminates upon finding a path that places the agent next to the
-    target primitive, returning the full action sequence, including the final 'USE'
-    action. If no path is found, it returns an empty list.
-
-    Args:
-        env (env.CraftLab): The CraftLab environment instance, providing access to the current state.
-        primitive (str): The name of the primitive to collect (e.g., 'wood', 'gold').
-
-    Returns:
-        List[int]: A list of action indices to collect the primitive, or an empty
-                   list if it's unreachable.
+    The algorithm is as follows:
+    - Identify all grid locations of the target primitive.
+    - Find all valid, walkable cells adjacent to these locations; these are the goals.
+    - Run BFS from the agent's current position to find the shortest path to any goal cell.
+    - Once the agent reaches a goal cell, determine the direction towards the primitive.
+    - Append a final movement action (the "bump") to face the primitive, followed by the
+      'USE' action to collect it.
     """
-    UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
-    
-    initial_state = env._current_state
-    world = initial_state.world
-    cookbook = world.cookbook
-    grid_shape = initial_state.grid.shape
+    # Step 1: Initialize state variables from the environment
+    current_state = env._current_state
+    world = current_state.world
+    grid = current_state.grid
+    start_pos = current_state.pos
 
     try:
-        target_idx = cookbook.index[primitive]
-        water_idx = cookbook.index['water']
-        bridge_idx = cookbook.index['bridge']
+        primitive_index = world.cookbook.index[primitive]
     except KeyError:
-        # This occurs if a required item like 'water' or the primitive itself isn't in the cookbook.
-        return []
+        return []  # Invalid primitive name
 
-    # Map obstacles to the tools required to clear them
-    tool_for_obstacle = {
-        water_idx: bridge_idx,
+    # Define action constants based on environment specification
+    ACTION_DOWN, ACTION_UP, ACTION_LEFT, ACTION_RIGHT, ACTION_USE = 0, 1, 2, 3, 4
+
+    # Map actions to coordinate changes (dx=row_change, dy=col_change)
+    action_to_delta = {
+        ACTION_DOWN: (1, 0),
+        ACTION_UP: (-1, 0),
+        ACTION_LEFT: (0, -1),
+        ACTION_RIGHT: (0, 1),
     }
 
-    # BFS queue stores tuples of: (position, inventory, grid, actions)
-    queue = collections.deque([(
-        initial_state.pos,
-        initial_state.inventory.copy(),
-        initial_state.grid.copy(),
-        []
-    )])
-    
-    # Visited set prevents cycles and redundant computations.
-    # The key includes position, inventory, and the grid state.
-    visited = set()
-    initial_state_key = (initial_state.pos, tuple(initial_state.inventory), initial_state.grid.tobytes())
-    visited.add(initial_state_key)
+    # Step 2: Find all primitive locations and their adjacent, walkable goal cells
+    target_coords = np.argwhere(grid[:, :, primitive_index] == 1)
+    if target_coords.size == 0:
+        return []  # Primitive not found on the map
 
-    # Map action indices to their corresponding (dx, dy) deltas
-    action_deltas = {
-        UP:    (0, -1),
-        DOWN:  (0, 1),
-        LEFT:  (-1, 0),
-        RIGHT: (1, 0),
-    }
-    
-    while queue:
-        pos, inventory, grid, actions = queue.popleft()
+    adjacent_goals = set()
+    goal_to_target_map = {}  # Map goal cells back to their target for orientation
 
-        if len(actions) > 200:  # Safety break to prevent searching infinitely on complex maps
-            continue
+    for tx, ty in target_coords:
+        for action, (dx, dy) in action_to_delta.items():
+            # An adjacent cell is where the agent must be to perform the action
+            ax, ay = tx - dx, ty - dy
+            adj_pos = (ax, ay)
 
-        # Explore neighbors by trying each directional action from the current position
-        for action, (dx, dy) in action_deltas.items():
-            neighbor_pos = (pos[0] + dx, pos[1] + dy)
+            # Check if the adjacent cell is within bounds and walkable
+            if (0 <= ax < grid.shape[0] and 0 <= ay < grid.shape[1]):
+                kind_at_adj = np.argmax(grid[ax, ay])
+                if kind_at_adj not in world.non_grabbable_indices:
+                    adjacent_goals.add(adj_pos)
+                    if adj_pos not in goal_to_target_map:
+                        goal_to_target_map[adj_pos] = (tx, ty)
 
-            # Check if the neighbor is within the grid bounds
-            if not (0 <= neighbor_pos[0] < grid_shape[0] and 0 <= neighbor_pos[1] < grid_shape[1]):
-                continue
-            
-            # Identify the content of the neighbor cell
-            cell_idx = np.argmax(grid[neighbor_pos])
+    if not adjacent_goals:
+        return []  # No accessible cells next to the primitive
 
-            # Case 1: Neighbor is the target primitive. We found a solution.
-            if cell_idx == target_idx:
-                # To collect, the agent must face the target and USE. The `action` will turn
-                # the agent. The subsequent move will be blocked by the resource, but the
-                # agent will be correctly oriented for the USE action.
-                return actions + [action, USE]
+    # Step 3: BFS to find the shortest path to a goal cell
+    path_to_adjacent = None
+    final_pos = None
 
-            # Case 2: Neighbor is an empty, traversable cell.
-            if cell_idx == 0:
-                new_pos = neighbor_pos
-                new_actions = actions + [action]
+    if start_pos in adjacent_goals:
+        path_to_adjacent = []
+        final_pos = start_pos
+    else:
+        queue = collections.deque([(start_pos, [])])
+        visited = {start_pos}
+
+        while queue:
+            (cx, cy), path = queue.popleft()
+
+            for action, (dx, dy) in action_to_delta.items():
+                nx, ny = cx + dx, cy + dy
+                next_pos = (nx, ny)
+
+                if next_pos in visited:
+                    continue
                 
-                # The grid and inventory don't change for a simple move.
-                state_key = (new_pos, tuple(inventory), grid.tobytes())
-                if state_key not in visited:
-                    visited.add(state_key)
-                    queue.append((new_pos, inventory, grid, new_actions))
+                # Check grid bounds and walkability for the next step
+                if (0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1]):
+                    kind_at_next = np.argmax(grid[nx, ny])
+                    if kind_at_next not in world.non_grabbable_indices:
+                        new_path = path + [action]
+                        if next_pos in adjacent_goals:
+                            path_to_adjacent = new_path
+                            final_pos = next_pos
+                            queue.clear()  # Shortest path found, terminate search
+                            break
+                        
+                        visited.add(next_pos)
+                        queue.append((next_pos, new_path))
+    
+    if path_to_adjacent is None:
+        return []  # No path could be found
 
-            # Case 3: Neighbor is an obstacle that can be cleared with a tool.
-            elif cell_idx in tool_for_obstacle:
-                required_tool_idx = tool_for_obstacle[cell_idx]
-                
-                # Check if the agent has the necessary tool in its inventory.
-                if inventory[required_tool_idx] > 0:
-                    # Simulate using the tool: agent stays at `pos`, but inventory and grid change.
-                    new_inventory = inventory.copy()
-                    new_inventory[required_tool_idx] -= 1
-                    
-                    new_grid = grid.copy()
-                    # Clear the obstacle cell, making it empty (represented by a zero vector).
-                    new_grid[neighbor_pos] = 0.0
+    # Step 4: Determine final orientation ("bump") and USE actions
+    full_path = list(path_to_adjacent)
+    (gx, gy) = final_pos
+    (tx, ty) = goal_to_target_map[final_pos]
 
-                    # The action sequence is to face the obstacle and use the tool.
-                    new_actions = actions + [action, USE]
-                    
-                    # This new search state starts from the *same position* but with an updated world.
-                    state_key = (pos, tuple(new_inventory), new_grid.tobytes())
-                    if state_key not in visited:
-                        visited.add(state_key)
-                        queue.append((pos, new_inventory, new_grid, new_actions))
+    # Calculate the action required to face the target from the adjacent goal position
+    required_turn_action = -1
+    if (tx, ty) == (gx - 1, gy): # Target is UP
+        required_turn_action = ACTION_UP
+    elif (tx, ty) == (gx + 1, gy): # Target is DOWN
+        required_turn_action = ACTION_DOWN
+    elif (tx, ty) == (gx, gy - 1): # Target is LEFT
+        required_turn_action = ACTION_LEFT
+    elif (tx, ty) == (gx, gy + 1): # Target is RIGHT
+        required_turn_action = ACTION_RIGHT
 
-    # If the queue becomes empty, no path was found.
-    return []
+    if required_turn_action != -1:
+        full_path.append(required_turn_action)
+        full_path.append(ACTION_USE)
+    
+    return full_path
 
 
 print(evaluate())

@@ -242,127 +242,201 @@ def evaluate() -> float:
 
 
 def collect(env, primitive):
+    # """
+    # Returns a sequence of actions to collect a specified primitive.
+
+    # This function computes a shortest path to a target primitive using a Breadth-First Search (BFS).
+    # It handles obstacles like water or rock by using tools available in the agent's inventory
+    # (e.g., using a bridge to cross water or a pickaxe to break a rock). The BFS explores possible paths,
+    # accounting for changes in the environment (grid) and the agent's inventory when a tool is used.
+
+    # The state tracked in the BFS is a tuple containing the agent's position, the current
+    # grid layout, the current inventory, and the sequence of actions taken to reach this state.
+    # This ensures that each search branch operates on an independent and correct version of the world.
+
+    # Args:
+    #     env (env.CraftLab): The CraftLab environment instance.
+    #     primitive (str): The name of the primitive to collect (e.g., 'WOOD', 'GOLD').
+
+    # Returns:
+    #     List[int]: A sequence of action indices to navigate to and collect the primitive.
+    #                Returns an empty list if the primitive is unreachable.
+    # """
+    # # Step 1: Extract the current state from the environment
+    # current_state = env._current_state
+
+    # # Step 2: Identify the index of the primitive to collect
+    # primitive_index = current_state.world.cookbook.index[primitive]
+
+    # # Step 3: Define a simple BFS (Breadth-First Search) algorithm to find the shortest path
+    # def bfs(start_pos, target_kind):
+    #     """Performs Breadth-First Search to find the shortest path to a cell with the target kind."""
+    #     queue = collections.deque([(start_pos, [])])
+    #     visited = set()
+    #     while queue:
+    #         (x, y), path = queue.popleft()
+    #         if (x, y) in visited:
+    #             continue
+    #         visited.add((x, y))
+    #         # Check all four possible directions: UP, DOWN, LEFT, RIGHT
+    #         for dx, dy, action in [(-1, 0, 2), (1, 0, 3), (0, -1, 0), (0, 1, 1)]:
+    #             nx, ny = x + dx, y + dy
+    #             # Ensure the new position is within bounds and not blocked by non-grabbable entities
+    #             if 0 <= nx < current_state.grid.shape[0] and 0 <= ny < current_state.grid.shape[1]:
+    #                 kind_index = np.argmax(current_state.grid[nx, ny])
+    #                 if kind_index in current_state.world.non_grabbable_indices:
+    #                     continue
+    #                 new_path = path + [action]
+    #                 # Check if the target primitive is found at this cell
+    #                 if kind_index == target_kind:
+    #                     return new_path
+    #                 queue.append(((nx, ny), new_path))
+    #     return []
+
+    # # Step 4: Use the BFS to find a path to any cell containing the primitive
+    # actions = bfs(current_state.pos, primitive_index)
+
+    # # Step 5: Append the USE action to collect the primitive
+    # if actions:
+    #     actions.append(4)  # The index for the USE action
+
+    # return actions
+
     """
-    Returns a sequence of actions to collect a specified primitive.
+    Computes a shortest path to collect a specified primitive using a stateful Breadth-First Search.
 
-    This function computes a shortest path to a target primitive using a Breadth-First Search (BFS).
-    It handles obstacles like water or rock by using tools available in the agent's inventory
-    (e.g., using a bridge to cross water or a pickaxe to break a rock). The BFS explores possible paths,
-    accounting for changes in the environment (grid) and the agent's inventory when a tool is used.
+    This function finds the shortest sequence of actions for the agent to move
+    adjacent to a target primitive and collect it. The search accounts for the
+    agent's current position, inventory, and the grid layout.
 
-    The state tracked in the BFS is a tuple containing the agent's position, the current
-    grid layout, the current inventory, and the sequence of actions taken to reach this state.
-    This ensures that each search branch operates on an independent and correct version of the world.
+    The agent can use tools from its inventory to overcome obstacles (e.g., using a
+    'bridge' to cross 'water'). The BFS simulates these actions by tracking changes
+    to the grid and inventory, allowing it to discover paths through cleared obstacles.
+
+    The state in the BFS queue consists of:
+    - pos (tuple): The agent's (x, y) coordinates.
+    - inventory (np.ndarray): The agent's current inventory.
+    - grid (np.ndarray): The current state of the world grid for that search branch.
+    - actions (list): The sequence of actions taken to reach this state.
+
+    The search terminates upon finding a path that places the agent next to the
+    target primitive, returning the full action sequence, including the final 'USE'
+    action. If no path is found, it returns an empty list.
 
     Args:
-        env (env.CraftLab): The CraftLab environment instance.
-        primitive (str): The name of the primitive to collect (e.g., 'WOOD', 'GOLD').
+        env (env.CraftLab): The CraftLab environment instance, providing access to the current state.
+        primitive (str): The name of the primitive to collect (e.g., 'wood', 'gold').
 
     Returns:
-        List[int]: A sequence of action indices to navigate to and collect the primitive.
-                   Returns an empty list if the primitive is unreachable.
+        List[int]: A list of action indices to collect the primitive, or an empty
+                   list if it's unreachable.
     """
-    # Action constants
     UP, DOWN, LEFT, RIGHT, USE = 0, 1, 2, 3, 4
-
-    # Get initial state and references to world components
+    
     initial_state = env._current_state
-    cookbook = initial_state.world.cookbook
+    world = initial_state.world
+    cookbook = world.cookbook
+    grid_shape = initial_state.grid.shape
 
     try:
-        target_index = cookbook.index[primitive]
+        target_idx = cookbook.index[primitive]
+        water_idx = cookbook.index['water']
+        bridge_idx = cookbook.index['bridge']
+        stone_idx = cookbook.index['stone']
+        axe_idx = cookbook.index['axe']
     except KeyError:
-        return [] # Primitive does not exist in this world's recipes
+        # This occurs if a required item like 'water' or the primitive itself isn't in the cookbook.
+        return []
 
-    # Define which tools can clear which obstacles by mapping their names.
-    # This is robust to whether these items actually exist in a given scenario.
-    obstacle_to_tool_map = {}
-    tool_map_definitions = [
-        ('water', 'bridge'),
-        ('rock', 'pickaxe'),
-        ('stone', 'pickaxe'), # Assuming pickaxe also works on stone
-        ('tree', 'axe'),
-        ('boulder', 'hammer')
-    ]
-    for obstacle_name, tool_name in tool_map_definitions:
-        if obstacle_name in cookbook.index and tool_name in cookbook.index:
-            obstacle_to_tool_map[cookbook.index[obstacle_name]] = cookbook.index[tool_name]
-
-    # Map actions to coordinate deltas for movement
-    action_to_delta = {
-        UP: (0, -1),
-        DOWN: (0, 1),
-        LEFT: (-1, 0),
-        RIGHT: (1, 0),
+    # Map obstacles to the tools required to clear them
+    tool_for_obstacle = {
+        water_idx: bridge_idx,
+        stone_idx: axe_idx
     }
 
-    # --- BFS Setup ---
-    # State: (position, grid_state, inventory_state, actions_list)
-    start_pos = initial_state.pos
-    start_grid = initial_state.grid.copy()
-    start_inventory = initial_state.inventory.copy()
+    # BFS queue stores tuples of: (position, inventory, grid, actions)
+    queue = collections.deque([
+        (
+            initial_state.pos,
+            initial_state.inventory.copy(),
+            initial_state.grid.copy(),
+            []
+        )
+    ])
     
-    queue = collections.deque([(start_pos, start_grid, start_inventory, [])])
-    
-    # Visited set prevents cycles. Key: (position_tuple, inventory_tuple)
-    # Inventory is part of the key because reaching a cell with different
-    # tools is a fundamentally different and valid state to explore.
-    visited = set([(start_pos, tuple(start_inventory))])
+    # Visited set prevents cycles and redundant computations.
+    # The key includes position, inventory, and the grid state.
+    visited = set()
+    initial_state_key = (initial_state.pos, tuple(initial_state.inventory), initial_state.grid.tobytes())
+    visited.add(initial_state_key)
 
+    # Map action indices to their corresponding (dx, dy) deltas
+    action_deltas = {
+        UP:    (0, -1),
+        DOWN:  (0, 1),
+        LEFT:  (-1, 0),
+        RIGHT: (1, 0),
+    }
+    
     while queue:
-        pos, grid, inventory, actions = queue.popleft()
+        pos, inventory, grid, actions = queue.popleft()
 
-        # --- 1. Goal Check ---
-        # Check if the target primitive is in an adjacent cell.
-        for move_action, (dx, dy) in action_to_delta.items():
-            adj_pos = (pos[0] + dx, pos[1] + dy)
+        if len(actions) > 200:  # Safety break to prevent searching infinitely on complex maps
+            continue
 
-            if not (0 <= adj_pos[0] < grid.shape[0] and 0 <= adj_pos[1] < grid.shape[1]):
+        # Explore neighbors by trying each directional action from the current position
+        for action, (dx, dy) in action_deltas.items():
+            neighbor_pos = (pos[0] + dx, pos[1] + dy)
+
+            # Check if the neighbor is within the grid bounds
+            if not (0 <= neighbor_pos[0] < grid_shape[0] and 0 <= neighbor_pos[1] < grid_shape[1]):
                 continue
+            
+            # Identify the content of the neighbor cell
+            cell_idx = np.argmax(grid[neighbor_pos])
 
-            # If the adjacent cell has our target, we've found a path.
-            if np.argmax(grid[adj_pos]) == target_index:
-                # The final sequence is to face the target and then USE.
-                return actions + [move_action, USE]
+            # Case 1: Neighbor is the target primitive. We found a solution.
+            if cell_idx == target_idx:
+                # To collect, the agent must face the target and USE. The `action` will turn
+                # the agent. The subsequent move will be blocked by the resource, but the
+                # agent will be correctly oriented for the USE action.
+                return actions + [action, USE]
 
-        # --- 2. Explore Neighbors ---
-        for move_action, (dx, dy) in action_to_delta.items():
-            next_pos = (pos[0] + dx, pos[1] + dy)
-
-            if not (0 <= next_pos[0] < grid.shape[0] and 0 <= next_pos[1] < grid.shape[1]):
-                continue
-
-            # --- Case A: Next cell is empty ---
-            if not np.any(grid[next_pos]):
-                state_key = (next_pos, tuple(inventory))
+            # Case 2: Neighbor is an empty, traversable cell.
+            if cell_idx == 0:
+                new_pos = neighbor_pos
+                new_actions = actions + [action]
+                
+                # The grid and inventory don't change for a simple move.
+                state_key = (new_pos, tuple(inventory), grid.tobytes())
                 if state_key not in visited:
                     visited.add(state_key)
-                    # For a simple move, grid and inventory don't change.
-                    queue.append((next_pos, grid, inventory, actions + [move_action]))
+                    queue.append((new_pos, inventory, grid, new_actions))
 
-            # --- Case B: Next cell is a clearable obstacle ---
-            else:
-                obstacle_index = np.argmax(grid[next_pos])
-                required_tool_index = obstacle_to_tool_map.get(obstacle_index)
-
-                # Check if we have the necessary tool for this obstacle.
-                if required_tool_index is not None and inventory[required_tool_index] > 0:
-                    # Create the new state that results from clearing the obstacle and moving.
+            # Case 3: Neighbor is an obstacle that can be cleared with a tool.
+            elif cell_idx in tool_for_obstacle:
+                required_tool_idx = tool_for_obstacle[cell_idx]
+                
+                # Check if the agent has the necessary tool in its inventory.
+                if inventory[required_tool_idx] > 0:
+                    # Simulate using the tool: agent stays at `pos`, but inventory and grid change.
                     new_inventory = inventory.copy()
-                    new_inventory[required_tool_index] -= 1
+                    new_inventory[required_tool_idx] -= 1
                     
                     new_grid = grid.copy()
-                    new_grid[next_pos].fill(0) # Clear the obstacle from the grid.
+                    # Clear the obstacle cell, making it empty (represented by a zero vector).
+                    new_grid[neighbor_pos] = 0.0
 
-                    # The action sequence to clear and move is: face, use, move.
-                    new_actions = actions + [move_action, USE, move_action]
+                    # The action sequence is to face the obstacle and use the tool.
+                    new_actions = actions + [action, USE]
                     
-                    state_key = (next_pos, tuple(new_inventory))
+                    # This new search state starts from the *same position* but with an updated world.
+                    state_key = (pos, tuple(new_inventory), new_grid.tobytes())
                     if state_key not in visited:
                         visited.add(state_key)
-                        queue.append((next_pos, new_grid, new_inventory, new_actions))
+                        queue.append((pos, new_inventory, new_grid, new_actions))
 
-    # If the queue is exhausted, the target is unreachable with the current inventory.
+    # If the queue becomes empty, no path was found.
     return []
 
     # Get the current state and world information
