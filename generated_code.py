@@ -151,121 +151,124 @@ def evaluate() -> float:
   
   
 def collect(env, primitive):
-    """
-    Calculates a sequence of actions to navigate to and collect a specified primitive.
+  """
+  Generates a sequence of actions to find, move adjacent to, face, and collect a primitive.
 
-    This function implements the A* search algorithm to find the shortest path from the
-    agent's current state to a state where it is adjacent to and facing the target
-    primitive. It correctly handles the agent's direction and navigates around
-    obstacles.
+  This function implements a Breadth-First Search (BFS) algorithm to find the 
+  shortest path from the agent's current state to a state where it can collect 
+  the target primitive.
 
-    Args:
-        env (CraftLab): The environment instance.
-        primitive (str): The name of the primitive to collect (e.g., 'WOOD', 'IRON').
+  The key considerations are:
+  1.  **Correct Goal State**: The agent cannot move onto the primitive's cell. It must
+      move to an empty adjacent cell.
+  2.  **Agent Direction**: The 'USE' action is directional. The agent must be facing
+      the primitive to collect it. Therefore, the agent's direction is a critical
+      part of the search state.
 
-    Returns:
-        list[int]: A list of action integers representing the optimal plan. Returns
-                   an empty list if no path is found.
-    """
-    # Action constants from the environment specification and analysis.
-    # It's assumed UP=Forward, LEFT=Turn Left, RIGHT=Turn Right.
-    ACTION_UP = 1
-    ACTION_LEFT = 2
-    ACTION_RIGHT = 3
-    ACTION_USE = 4
+  The BFS explores states represented as (position, direction) tuples, ensuring
+  the final path correctly orients the agent before the final 'USE' action.
+  """
+  import numpy as np
+  from collections import deque
 
-    # Define a consistent agent direction encoding (0:N, 1:E, 2:S, 3:W - Clockwise)
-    # and the corresponding (dx, dy) vectors for moving forward.
-    DIR_VECTORS = {
-        0: (0, -1),   # North
-        1: (1, 0),    # East
-        2: (0, 1),    # South
-        3: (-1, 0),   # West
-    }
+  # -- State and environment information --
+  current_state = env._current_state
+  grid = current_state.grid
+  start_pos = current_state.pos
+  start_dir = current_state.dir
+  
+  grid_w, grid_h, _ = grid.shape
+  primitive_index = env.world.cookbook.index[primitive]
 
-    current_state = env._current_state
-    world = current_state.world
-    grid = current_state.grid
-    start_pos = current_state.pos
-    start_dir = current_state.dir
+  # -- Mappings for actions, directions, and grid deltas --
+  # Based on CraftLab spec & craft.py constants: DOWN=0, UP=1, LEFT=2, RIGHT=3.
+  # We assume the agent's internal state `CraftState.dir` uses the same convention.
+  action_to_dir = {
+      craft.DOWN: 0,
+      craft.UP: 1,
+      craft.LEFT: 2,
+      craft.RIGHT: 3,
+  }
+  
+  # Delta (dx, dy) for moving in the direction of an action. Assumes (x, y) coordinates.
+  action_deltas = {
+      craft.DOWN: (0, -1),
+      craft.UP: (0, 1),
+      craft.LEFT: (-1, 0),
+      craft.RIGHT: (1, 0),
+  }
 
-    # Step 1: Identify the target primitive's index and find all its locations.
-    try:
-        primitive_index = world.cookbook.index[primitive]
-    except KeyError:
-        return []  # Invalid primitive name.
+  # Reverse mapping to find which action is needed to face a certain relative direction.
+  delta_to_action = {v: k for k, v in action_deltas.items()}
 
-    target_coords = np.argwhere(grid[:, :, primitive_index] > 0)
-    if target_coords.shape[0] == 0:
-        return []  # Primitive not found on the grid.
-    target_locations = set(map(tuple, target_coords))
+  # -- Helper function for pathfinding --
+  def is_traversable(x, y):
+      # A cell is traversable if it is within bounds and completely empty.
+      # Any item on a cell makes it non-traversable.
+      if not (0 <= x < grid_w and 0 <= y < grid_h):
+          return False
+      return not np.any(grid[x, y] > 0)
 
-    # Step 2: Set up the A* search algorithm.
-    # The heuristic function is the Manhattan distance to the nearest target.
-    def heuristic(pos):
-        px, py = pos
-        return min(abs(px - tx) + abs(py - ty) for tx, ty in target_locations)
+  # 1. Identify all valid goal states for the search.
+  # A goal state is a tuple of ((position), direction) where the agent is
+  # at an empty cell adjacent to the primitive, and is facing the primitive.
+  goal_states = set()
+  # Find all locations (px, py) of the target primitive.
+  primitive_locations = np.argwhere(grid[:, :, primitive_index] > 0)
+  
+  if primitive_locations.size == 0:
+      return [] # Primitive not found on the map.
 
-    # The priority queue stores tuples of: (priority, cost, state, path).
-    # - priority: The f-value (cost + heuristic) for sorting.
-    # - cost: The g-value, or length of the path so far.
-    # - state: A tuple of (x, y, direction).
-    # - path: The list of actions taken to reach the state.
-    initial_state = (start_pos[0], start_pos[1], start_dir)
-    pq = [(heuristic(start_pos), 0, initial_state, [])]
-    visited = set()
+  for px, py in primitive_locations:
+      # Check all four neighbors of the primitive to find valid standing spots.
+      for target_delta, action in delta_to_action.items():
+          # The agent's goal position (gx, gy) is adjacent to the primitive (px, py).
+          # The delta is from the agent to the target, so agent_pos = primitive_pos - delta.
+          dx, dy = target_delta
+          gx, gy = px - dx, py - dy
 
-    while pq:
-        _, cost, state, path = heapq.heappop(pq)
+          # The cell the agent stands on must be traversable on its own.
+          # We check the start pos separately.
+          if is_traversable(gx, gy) or (gx, gy) == start_pos:
+              # The direction the agent must face is determined by the required action.
+              required_dir = action_to_dir[action]
+              goal_states.add(((gx, gy), required_dir))
 
-        if state in visited:
-            continue
-        visited.add(state)
+  if not goal_states:
+      return []
 
-        pos_x, pos_y, direction = state
+  # Handle the edge case where the agent starts in a goal state.
+  if (start_pos, start_dir) in goal_states:
+      return [craft.USE]
 
-        # Step 3: Check for the goal condition.
-        # The goal is reached if the agent is facing a cell with the target primitive.
-        dx, dy = DIR_VECTORS[direction]
-        front_pos = (pos_x + dx, pos_y + dy)
+  # 2. Perform Breadth-First Search (BFS) to find the shortest path.
+  # The state in the queue is ((x, y), direction, path_list).
+  # The visited set stores ((x, y), direction) to avoid cycles and redundant paths.
+  queue = deque([(start_pos, start_dir, [])])
+  visited = set([(start_pos, start_dir)])
 
-        if front_pos in target_locations:
-            return path + [ACTION_USE]
+  while queue:
+      (cx, cy), cdir, path = queue.popleft()
 
-        # Step 4: Expand the search by exploring all possible actions.
+      # Explore possible next states by taking each of the 4 move actions.
+      for action in [craft.UP, craft.DOWN, craft.LEFT, craft.RIGHT]:
+          # The action determines the new direction and the attempted move.
+          new_dir = action_to_dir[action]
+          dx, dy = action_deltas[action]
+          nx, ny = cx + dx, cy + dy
 
-        # Action: TURN_RIGHT (action 3)
-        # A clockwise turn increments the direction index.
-        new_dir_right = (direction + 1) % 4
-        new_state_right = (pos_x, pos_y, new_dir_right)
-        if new_state_right not in visited:
-            new_cost = cost + 1
-            priority = new_cost + heuristic((pos_x, pos_y))
-            heapq.heappush(pq, (priority, new_cost, new_state_right, path + [ACTION_RIGHT]))
-
-        # Action: TURN_LEFT (action 2)
-        # A counter-clockwise turn decrements the direction index.
-        new_dir_left = (direction - 1 + 4) % 4
-        new_state_left = (pos_x, pos_y, new_dir_left)
-        if new_state_left not in visited:
-            new_cost = cost + 1
-            priority = new_cost + heuristic((pos_x, pos_y))
-            heapq.heappush(pq, (priority, new_cost, new_state_left, path + [ACTION_LEFT]))
-
-        # Action: MOVE_FORWARD (action 1)
-        # Check if the cell in front is within bounds and empty (passable).
-        fx, fy = front_pos
-        width, height, _ = grid.shape
-        if 0 <= fx < width and 0 <= fy < height:
-            # A cell is passable if its one-hot encoding sums to 0.
-            if np.sum(grid[fx, fy, :]) == 0:
-                new_state_forward = (fx, fy, direction)
-                if new_state_forward not in visited:
-                    new_cost = cost + 1
-                    priority = new_cost + heuristic((fx, fy))
-                    heapq.heappush(pq, (priority, new_cost, new_state_forward, path + [ACTION_UP]))
-
-    return []  # Return an empty list if A* completes without finding a path.
+          if is_traversable(nx, ny):
+              new_state = ((nx, ny), new_dir)
+              
+              if new_state not in visited:
+                  new_path = path + [action]
+                  if new_state in goal_states:
+                      return new_path + [craft.USE]
+                  
+                  visited.add(new_state)
+                  queue.append((new_state[0], new_state[1], new_path))
+                  
+  return []
 
 
 print(evaluate())

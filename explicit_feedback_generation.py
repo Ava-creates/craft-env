@@ -5,6 +5,70 @@ import subprocess
 import time
 from google import genai
 import requests
+import argparse
+from datetime import datetime
+import json
+from typing import List, Tuple, Dict, Any, Optional
+
+def get_end_score(scores: Dict[str, Any]) -> Optional[float]:
+    if not isinstance(scores, dict) or not scores:
+        return None
+    try:
+        step_keys = [int(k) for k in scores.keys()]
+    except (ValueError, TypeError):
+        # Fallback: if keys are not numeric, just take any deterministic "last" by insertion order
+        try:
+            # Python 3.7+ preserves insertion order
+            last_key = next(reversed(scores))
+            return float(scores[last_key])
+        except Exception:
+            return None
+    last_step = max(step_keys)
+    value = scores.get(str(last_step))
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def parse_log_file(path: str, k: int = 1) -> List[Tuple[float, str]]:
+    scored_funcs: List[Tuple[float, str]] = []
+
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            scores = record.get("scores")
+            function_body = record.get("function_body")
+
+            if function_body is None or scores is None:
+                continue
+
+            end_score = get_end_score(scores)
+            if end_score is None:
+                continue
+
+            scored_funcs.append((end_score, function_body))
+
+    if not scored_funcs:
+        return []
+
+    # Sort by score, highest first
+    scored_funcs.sort(key=lambda x: x[0], reverse=True)
+
+    # Find cutoff score if ties go beyond k
+    cutoff = scored_funcs[k-1][0] if len(scored_funcs) >= k else scored_funcs[-1][0]
+
+    # Keep all functions with score >= cutoff
+    top_k_with_ties = [(s, f) for (s, f) in scored_funcs if s >= cutoff]
+    return top_k_with_ties
+
+
 def eval(res):
             # with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = os.getcwd()
@@ -408,61 +472,98 @@ print(evaluate())
                 return -1, False
 
 
-with open("prompt_specifications/specification_with_updated_nld.txt", "r") as f:
-    prompt1 = f.read()
 
-with open("collect_func.py", "r") as f:
-    func = f.read()
+def response_gen(funcs):
+  with open("prompt_specifications/specification_with_updated_nld.txt", "r") as f:
+      prompt1 = f.read()
 
-prompt = prompt1 + "\n" + "def collect(env, primitive): \n" + func
+  # funcs = parse_log_file(5)
+  # with open("collect_func.py", "r") as f:
+  #     func = f.read()
 
-prompt += "we have the function above analyse the function and give natural language feedback on it as it is not working properly in bullet points."
+    # Build readable text of top functions
+  funcs_text = "\n\n".join(
+        [f"### Score: {score}\n```python\n{body}\n```" for score, body in funcs]
+    )
 
+  prompt = (
+        prompt1
+        + "\n\nHere are different implementations of `def collect(env, primitive):`\n"
+        + funcs_text
+        + "\n\nAnalyse the functions and give natural language feedback in bullet points."
+    )
 
+  print(prompt)
+  client = genai.Client()
 
-
-client = genai.Client()
-
-
-response = client.models.generate_content(
-                        model="gemini-2.5-pro", contents = prompt
-                    )
-b = response.text
-
-print(b)
-
-prompt = prompt1 + "feedback:\n"+b +  "def collect(env, primitive): \n" + func + "Return the corrected version of the function"
-
-
-for i in range(20):
-    response = client.models.generate_content(
-                            model="gemini-2.5-pro", contents = prompt
-                        )
-    b = response.text
-
-    # print("second generation\n", b)
-    try:
-      b = b[b.index("def collect(env, primitive):")+len("def collect(env, primitive):")+1:]
-      b= b[:b.index("```")]
-    except:
-      continue
-    
-    # # Log the extracted function code
-    # print(f"Iteration {i+1} - Extracted function code:")
-    # print(b)
-    # print("-" * 50)
-    
-    # Log the evaluation result
-    eval_result = eval(b)
-    
-    # Create dictionary for structured logging
-    log_entry = {
-        "extracted_function_code": b,
-        "evaluation_result": eval_result,
-    }
-    print(eval_result)
-    # Write to log file in JSON format
-    with open("feedback_sampling.json", 'a') as log_file:
-        log_file.write(json.dumps(log_entry, indent=2) + "\n")
+  response = client.models.generate_content(
+                          model="gemini-2.5-pro", contents = prompt
+                      )
+  b = response.text
+  feedback = b
+  print(b)
   
+  # prompt = prompt1 + "feedback:\n"+b +  "def collect(env, primitive): \n" + func + "Return the corrected version of the function"
+  correction_prompt = (
+      prompt1
+      + "\n\nFeedback:\n"
+      + feedback
+      + "\n\nHere are the candidate functions for `def collect(env, primitive):`\n"
+      + funcs_text
+      + "\n\nReturn a corrected and improved version of the function."
+  )
+  timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
+  # build filename
+  log_filename = f"feedback_sampling_{timestamp}.json"
+  for i in range(20):
+      response = client.models.generate_content(
+                              model="gemini-2.5-pro", contents = correction_prompt
+                          )
+      b = response.text
+
+      # print("second generation\n", b)
+      try:
+        b = b[b.index("def collect(env, primitive):")+len("def collect(env, primitive):")+1:]
+        b= b[:b.index("```")]
+      except:
+        continue
+      
+      # # Log the extracted function code
+      # print(f"Iteration {i+1} - Extracted function code:")
+      # print(b)
+      # print("-" * 50)
+      
+      # Log the evaluation result
+      eval_result = eval(b)
+      
+      # Create dictionary for structured logging
+      log_entry = {
+          "extracted_function_code": b,
+          "evaluation_result": eval_result,
+      }
+      print(eval_result)
+      # Write to log file in JSON format
+      with open(log_filename, "a") as log_file:
+          log_file.write(json.dumps(log_entry, indent=2) + "\n")
+    
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--logfile", type=str, required=True,
+                        help="Path to the feedback_sampling.json log file")
+    parser.add_argument("--k", type=int, default=5,
+                        help="Number of top functions to extract (ties included)")
+    args = parser.parse_args()
+
+    funcs = parse_log_file(args.logfile, k=args.k)
+
+    if not funcs:
+        print("No functions found.")
+        return
+
+    # Pass funcs into your response_gen (modified to accept funcs)
+    response_gen(funcs)
+
+if __name__ == "__main__":
+    main()

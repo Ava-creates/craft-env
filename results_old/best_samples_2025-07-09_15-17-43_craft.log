@@ -1,0 +1,447 @@
+Best Sample 1:
+def craft_func(env, item_index) -> list[int]:
+  action_specs = env.action_specs()
+  UP = action_specs['UP']
+  DOWN = action_specs['DOWN']
+  LEFT = action_specs['LEFT']
+  RIGHT = action_specs['RIGHT']
+  USE = action_specs['USE']
+
+  # Get current state's inventory and needed items for the target item
+  current_inventory = env._current_state.inventory.copy()
+  cookbook = env.world.cookbook.recipes
+  primitives = env.world.cookbook.primitives_for(item_index)
+
+  # Initialize a list to store actions
+  actions = []
+
+  def move_towards(x, y):
+      cx, cy = env._current_state.pos
+      dx, dy = x - cx, y - cy
+
+      while dx != 0 or dy != 0:
+          if dx > 0:
+              actions.append(RIGHT)
+              dx -= 1
+          elif dx < 0:
+              actions.append(LEFT)
+              dx += 1
+
+          if dy > 0:
+              actions.append(UP)
+              dy -= 1
+          elif dy < 0:
+              actions.append(DOWN)
+              dy += 1
+
+  # Check if we already have the required ingredients in our inventory
+  for ingredient, count in primitives.items():
+    while current_inventory[ingredient] < count:
+      # Find nearby instances of the ingredient
+      grid = env._current_state.grid
+      found = False
+
+      # Iterate through the entire grid to find the nearest instance of the ingredient
+      min_dist = float('inf')
+      target_pos = None
+      
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, ingredient]:
+                  dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+                  if dist < min_dist:
+                      min_dist = dist
+                      target_pos = (nx, ny)
+
+      if target_pos:
+          move_towards(*target_pos)
+          actions.append(USE)  # Use to collect or interact with the ingredient
+          found = True
+
+          # Update current inventory
+          current_inventory[ingredient] += 1
+
+      if not found:
+        raise Exception("Ingredient not found in grid")
+
+  # Find a nearby workshop where crafting can be done
+  grid = env._current_state.grid
+  min_dist = float('inf')
+  workshop_pos = None
+  
+  for nx in range(grid.shape[0]):
+      for ny in range(grid.shape[1]):
+          if grid[nx, ny, env.world.workshop_indices[0]] or \
+             grid[nx, ny, env.world.workshop_indices[1]] or \
+             grid[nx, ny, env.world.workshop_indices[2]]:
+              dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+              if dist < min_dist:
+                  min_dist = dist
+                  workshop_pos = (nx, ny)
+
+  if workshop_pos:
+      move_towards(*workshop_pos)
+      actions.append(USE)  # Use to start crafting at the workshop
+  else:
+    raise Exception("No workshop found in grid")
+
+  return actions
+
+
+
+Best Sample 2:
+def craft_func(env, item_index) -> list[int]:
+  action_specs = env.action_specs()
+  UP = action_specs['UP']
+  DOWN = action_specs['DOWN']
+  LEFT = action_specs['LEFT']
+  RIGHT = action_specs['RIGHT']
+  USE = action_specs['USE']
+
+  # Get current state's inventory and needed items for the target item
+  current_inventory = env._current_state.inventory.copy()
+  cookbook = env.world.cookbook.recipes
+  primitives = env.world.cookbook.primitives_for(item_index)
+
+  # Initialize a list to store actions
+  actions = []
+
+  def move_towards(x, y):
+      cx, cy = env._current_state.pos
+      dx, dy = x - cx, y - cy
+
+      while dx != 0 or dy != 0:
+          if dx > 0:
+              actions.append(RIGHT)
+              dx -= 1
+          elif dx < 0:
+              actions.append(LEFT)
+              dx += 1
+
+          if dy > 0:
+              actions.append(UP)
+              dy -= 1
+          elif dy < 0:
+              actions.append(DOWN)
+              dy += 1
+
+  def collect_ingredient(kind_index):
+      grid = env._current_state.grid
+      found = False
+      
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, kind_index]:
+                  move_towards(nx, ny)
+                  actions.append(USE)  # Use to collect or interact with the ingredient
+                  found = True
+                  break
+          if found:
+              break
+      
+      return found
+
+  def find_workshop():
+      grid = env._current_state.grid
+      
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if (grid[nx, ny, env.world.workshop_indices[0]] or
+                  grid[nx, ny, env.world.workshop_indices[1]] or
+                  grid[nx, ny, env.world.workshop_indices[2]]):
+                  return (nx, ny)
+      return None
+
+  # Collect ingredients if not already in inventory
+  for ingredient, count in primitives.items():
+    while current_inventory[ingredient] < count:
+        if collect_ingredient(ingredient):
+            actions.append(USE)  # Use to collect or interact with the ingredient
+            current_inventory[ingredient] += 1
+        else:
+            raise Exception("Ingredient not found in grid")
+
+  # Find a nearby workshop where crafting can be done
+  workshop_pos = find_workshop()
+  if workshop_pos is None:
+      raise Exception("No workshop found in grid")
+  
+  move_towards(*workshop_pos)
+  actions.append(USE)  # Use to start crafting at the workshop
+
+  return actions
+
+
+
+Best Sample 3:
+def craft_func(env, item_index) -> list[int]:
+  action_specs = env.action_specs()
+  UP = action_specs['UP']
+  DOWN = action_specs['DOWN']
+  LEFT = action_specs['LEFT']
+  RIGHT = action_specs['RIGHT']
+  USE = action_specs['USE']
+
+  # Get current state's inventory and needed items for the target item
+  current_inventory = env._current_state.inventory.copy()
+  cookbook = env.world.cookbook.recipes
+  primitives = env.world.cookbook.primitives_for(item_index)
+
+  # Initialize a list to store actions
+  actions = []
+
+  def move_towards(x, y):
+      cx, cy = env._current_state.pos
+      dx, dy = x - cx, y - cy
+
+      while dx != 0 or dy != 0:
+          if dx > 0:
+              actions.append(RIGHT)
+              dx -= 1
+          elif dx < 0:
+              actions.append(LEFT)
+              dx += 1
+
+          if dy > 0:
+              actions.append(UP)
+              dy -= 1
+          elif dy < 0:
+              actions.append(DOWN)
+              dy += 1
+
+  # Check if we already have the required ingredients in our inventory
+  for ingredient, count in primitives.items():
+    while current_inventory[ingredient] < count:
+      # Find nearby instances of the ingredient
+      grid = env._current_state.grid
+      found = False
+      
+      # Optimize search with a heuristic (e.g., Manhattan distance)
+      min_dist = float('inf')
+      target_pos = None
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, ingredient]:
+                  dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+                  if dist < min_dist:
+                      min_dist = dist
+                      target_pos = (nx, ny)
+
+      if target_pos:
+          move_towards(*target_pos)
+          actions.append(USE)  # Use to collect or interact with the ingredient
+          found = True
+
+          # Update current inventory
+          current_inventory[ingredient] += 1
+
+      if not found:
+        raise Exception("Ingredient not found in grid")
+
+  # Find a nearby workshop where crafting can be done
+  grid = env._current_state.grid
+  min_dist = float('inf')
+  workshop_pos = None
+  
+  for nx in range(grid.shape[0]):
+      for ny in range(grid.shape[1]):
+          if grid[nx, ny, env.world.workshop_indices[0]] or\
+             grid[nx, ny, env.world.workshop_indices[1]] or\
+             grid[nx, ny, env.world.workshop_indices[2]]:
+              dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+              if dist < min_dist:
+                  min_dist = dist
+                  workshop_pos = (nx, ny)
+
+  if workshop_pos:
+      move_towards(*workshop_pos)
+      actions.append(USE)  # Use to start crafting at the workshop
+  else:
+    raise Exception("No workshop found in grid")
+
+  return actions
+
+
+
+Best Sample 4:
+def craft_func(env, item_index) -> list[int]:
+  action_specs = env.action_specs()
+  UP = action_specs['UP']
+  DOWN = action_specs['DOWN']
+  LEFT = action_specs['LEFT']
+  RIGHT = action_specs['RIGHT']
+  USE = action_specs['USE']
+
+  # Get current state's inventory and needed items for the target item
+  current_inventory = env._current_state.inventory.copy()
+  cookbook = env.world.cookbook.recipes
+  primitives = env.world.cookbook.primitives_for(item_index)
+
+  # Initialize a list to store actions
+  actions = []
+
+  def move_towards(x, y):
+      cx, cy = env._current_state.pos
+      dx, dy = x - cx, y - cy
+
+      while dx != 0 or dy != 0:
+          if dx > 0:
+              actions.append(RIGHT)
+              dx -= 1
+          elif dx < 0:
+              actions.append(LEFT)
+              dx += 1
+
+          if dy > 0:
+              actions.append(UP)
+              dy -= 1
+          elif dy < 0:
+              actions.append(DOWN)
+              dy += 1
+
+  def collect_ingredient(kind_index):
+      grid = env._current_state.grid
+      found = False
+      
+      # Optimize search with a heuristic (e.g., Manhattan distance)
+      min_dist = float('inf')
+      target_pos = None
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, kind_index]:
+                  dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+                  if dist < min_dist:
+                      min_dist = dist
+                      target_pos = (nx, ny)
+
+      if target_pos:
+          move_towards(*target_pos)
+          actions.append(USE)  # Use to collect or interact with the ingredient
+          found = True
+
+      return found
+
+  def find_workshop():
+      grid = env._current_state.grid
+      
+      # Optimize search with a heuristic (e.g., Manhattan distance)
+      min_dist = float('inf')
+      workshop_pos = None
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, env.world.workshop_indices[0]] or\
+                 grid[nx, ny, env.world.workshop_indices[1]] or\
+                 grid[nx, ny, env.world.workshop_indices[2]]:
+                  dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+                  if dist < min_dist:
+                      min_dist = dist
+                      workshop_pos = (nx, ny)
+
+      return workshop_pos
+
+  # Collect ingredients if not already in inventory
+  for ingredient, count in primitives.items():
+    while current_inventory[ingredient] < count:
+        if collect_ingredient(ingredient):
+            actions.append(USE)  # Use to collect or interact with the ingredient
+            current_inventory[ingredient] += 1
+        else:
+            raise Exception("Ingredient not found in grid")
+
+  # Find a nearby workshop where crafting can be done
+  workshop_pos = find_workshop()
+  if workshop_pos is None:
+      raise Exception("No workshop found in grid")
+  
+  move_towards(*workshop_pos)
+  actions.append(USE)  # Use to start crafting at the workshop
+
+  return actions
+
+
+
+Best Sample 5:
+def craft_func(env, item_index) -> list[int]:
+  action_specs = env.action_specs()
+  UP = action_specs['UP']
+  DOWN = action_specs['DOWN']
+  LEFT = action_specs['LEFT']
+  RIGHT = action_specs['RIGHT']
+  USE = action_specs['USE']
+
+  # Get current state's inventory and needed items for the target item
+  current_inventory = env._current_state.inventory.copy()
+  cookbook = env.world.cookbook.recipes
+  primitives = env.world.cookbook.primitives_for(item_index)
+
+  # Initialize a list to store actions
+  actions = []
+
+  def move_towards(x, y):
+      cx, cy = env._current_state.pos
+      dx, dy = x - cx, y - cy
+
+      while dx != 0 or dy != 0:
+          if dx > 0:
+              actions.append(RIGHT)
+              dx -= 1
+          elif dx < 0:
+              actions.append(LEFT)
+              dx += 1
+
+          if dy > 0:
+              actions.append(UP)
+              dy -= 1
+          elif dy < 0:
+              actions.append(DOWN)
+              dy += 1
+
+  def find_nearest(grid, kind):
+      min_dist = float('inf')
+      target_pos = None
+      
+      for nx in range(grid.shape[0]):
+          for ny in range(grid.shape[1]):
+              if grid[nx, ny, kind]:
+                  dist = abs(nx - env._current_state.pos[0]) + abs(ny - env._current_state.pos[1])
+                  if dist < min_dist:
+                      min_dist = dist
+                      target_pos = (nx, ny)
+      return target_pos
+
+  # Collect ingredients if not already in inventory
+  for ingredient, count in primitives.items():
+    while current_inventory[ingredient] < count:
+        target_pos = find_nearest(env._current_state.grid, ingredient)
+        
+        if target_pos:
+            move_towards(*target_pos)
+            actions.append(USE)  # Use to collect or interact with the ingredient
+            found = True
+
+            # Update current inventory
+            current_inventory[ingredient] += 1
+        else:
+            raise Exception("Ingredient not found in grid")
+
+  # Find a nearby workshop where crafting can be done
+  min_dist = float('inf')
+  workshop_pos = None
+  
+  for w_index in env.world.workshop_indices:
+      target_pos = find_nearest(env._current_state.grid, w_index)
+      
+      if target_pos and (min_dist > abs(target_pos[0] - env._current_state.pos[0]) + abs(target_pos[1] - env._current_state.pos[1])):
+          min_dist = abs(target_pos[0] - env._current_state.pos[0]) + abs(target_pos[1] - env._current_state.pos[1])
+          workshop_pos = target_pos
+
+  if workshop_pos:
+      move_towards(*workshop_pos)
+      actions.append(USE)  # Use to start crafting at the workshop
+  else:
+    raise Exception("No workshop found in grid")
+
+  return actions
+
+
+

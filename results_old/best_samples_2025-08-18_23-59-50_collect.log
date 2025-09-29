@@ -1,0 +1,186 @@
+Best Sample 1:
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  # Get the index for the target primitive
+  primitive_index = env.world.cookbook.index.index(primitive)
+  
+  # Initialize an empty list to store actions
+  actions = []
+  
+  # Placeholder function to simulate shortest path calculation (to be replaced with actual implementation)
+  def shortest_path_to_primitive(env, primitive_index):
+    return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+  
+  # Find the shortest path to the target primitive
+  actions += shortest_path_to_primitive(env, primitive_index)
+
+  # Placeholder function to simulate collection process (to be replaced with actual implementation)
+  def collect_primitive_at_position(env, primitive_index):
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+
+  # Collect the target primitive
+  actions += collect_primitive_at_position(env, primitive_index)
+
+  return actions
+
+
+
+Best Sample 2:
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  # Get the index for the desired primitive from the cookbook's index.
+  primitive_index = env.world.cookbook.index.index(primitive)
+  
+  # Initialize a list to store actions the agent will perform.
+  actions = []
+  
+  # Placeholder function to simulate finding the shortest path to the target primitive
+  def find_shortest_path_to_primitive(env, primitive_index):
+    """
+    This function should return a sequence of actions that guides the agent from its current position 
+    to the closest instance of the desired primitive. For now, it returns an example sequence.
+    """
+    return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+  
+  # Find and add the shortest path to the target primitive
+  path_actions = find_shortest_path_to_primitive(env, primitive_index)
+  actions.extend(path_actions)
+
+  # Placeholder function to simulate collecting the primitive at the current position.
+  def collect_primitive_at_position(env, primitive_index):
+    """
+    This function should return a sequence of actions that allows the agent to collect 
+    the primitive once it reaches the desired location. For now, it returns an example sequence.
+    """
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+  
+  # Collect the target primitive
+  collection_actions = collect_primitive_at_position(env, primitive_index)
+  actions.extend(collection_actions)
+
+  return actions
+
+
+Best Sample 3:
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  # Retrieve the index of the desired primitive from the cookbook's index
+  primitive_index = env.world.cookbook.index.index(primitive)
+  
+  # Initialize an empty list to store actions
+  actions = []
+  
+  # Placeholder function to simulate shortest path calculation (to be replaced with actual implementation)
+  def shortest_path_to_primitive(env, target_pos):
+    """Calculate the shortest path to a target position on the grid."""
+    return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+  
+  # Function to find positions of all instances of the primitive in the environment
+  def find_positions_of_primitive(env, primitive_index):
+    """Find all positions of a given primitive in the grid."""
+    positions = []
+    for x in range(env._current_state.grid.shape[0]):
+        for y in range(env._current_state.grid.shape[1]):
+            if env._current_state.grid[x, y, primitive_index] > 0:
+                positions.append((x, y))
+    return positions
+  
+  # Find all positions of the target primitive
+  primitive_positions = find_positions_of_primitive(env, primitive_index)
+  
+  # Calculate shortest paths to each position and select the closest one
+  if primitive_positions:
+      shortest_distances = [(position, np.linalg.norm(np.array(position) - np.array(env._current_state.pos))) for position in primitive_positions]
+      target_position = min(shortest_distances, key=lambda x: x[1])[0]
+      
+      # Calculate the path to the closest target position
+      actions += shortest_path_to_primitive(env, target_position)
+  
+  # Placeholder function to simulate collection process (to be replaced with actual implementation)
+  def collect_primitive_at_position(env):
+    """Collect the primitive at the current agent's position."""
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+  
+  # Collect the target primitive
+  actions += collect_primitive_at_position(env)
+
+  return actions
+
+
+
+Best Sample 4:
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  # Get the index for the desired primitive
+  primitive_index = env.world.cookbook.index.index(primitive)
+
+  # Initialize an empty list to store actions
+  actions = []
+  
+  def find_shortest_path(env, target_index):
+    """
+    Placeholder function for finding the shortest path to a target location.
+    Returns a sequence of actions leading to the target location.
+    """
+    return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+  
+  def collect_at_location(env, index):
+    """
+    Placeholder function for collecting an item at the current location.
+    Returns a sequence of actions required to collect the item.
+    """
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+
+  # Find the shortest path to the primitive
+  path_actions = find_shortest_path(env, primitive_index)
+  actions.extend(path_actions)
+
+  # Collect the primitive at its location
+  collection_actions = collect_at_location(env, primitive_index)
+  actions.extend(collection_actions)
+
+  return actions
+
+
+
+Best Sample 5:
+def collect(env: env.CraftLab, primitive: str) -> list[int]:
+  primitive_index = env.world.cookbook.index.index(primitive)
+  
+  # Initialize an empty list to store actions
+  actions = []
+  
+  # Function to find positions of all instances of the primitive in the environment
+  def find_positions_of_primitive(env, primitive_index):
+    """Find all positions of a given primitive in the grid."""
+    positions = []
+    for x in range(env._current_state.grid.shape[0]):
+        for y in range(env._current_state.grid.shape[1]):
+            if env._current_state.grid[x, y, primitive_index] > 0:
+                positions.append((x, y))
+    return positions
+  
+  # Function to calculate the shortest path to a given position
+  def shortest_path_to_position(current_pos, target_pos):
+      """Calculate the shortest path from current position to target position."""
+      # Placeholder for actual shortest path algorithm
+      return [0] * 10  # Example: Return a dummy sequence of 10 no-op actions
+
+  # Find all positions of the target primitive
+  primitive_positions = find_positions_of_primitive(env, primitive_index)
+  
+  # Calculate shortest paths to each position and select the closest one
+  if primitive_positions:
+      shortest_distances = [(position, np.linalg.norm(np.array(position) - np.array(env._current_state.pos))) for position in primitive_positions]
+      target_position = min(shortest_distances, key=lambda x: x[1])[0]
+      
+      # Calculate the path to the closest target position
+      actions += shortest_path_to_position(env._current_state.pos, target_position)
+
+  def collect_primitive_at_position(env):
+    """Collect the primitive at the current agent's position."""
+    return [4] * 5  # Example: Return a dummy sequence of 5 "USE" actions
+
+  # Collect the target primitive
+  actions += collect_primitive_at_position(env)
+
+  return actions
+
+
+
